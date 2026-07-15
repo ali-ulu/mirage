@@ -1,0 +1,84 @@
+# MIRAGE Production Caddyfile
+# HTTPS termination + reverse proxy for all services.
+#
+# Replace {$MIRAGE_DOMAIN} with your actual domain (e.g., mirage.yourcompany.com).
+
+{
+	# Global options
+	email admin@{$MIRAGE_DOMAIN}
+	# Enable staging CA for testing (comment out for production)
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# Main dashboard
+{$MIRAGE_DOMAIN} {
+	encode gzip zstd
+
+	# Edge function (beacon receiver)
+	# Route-specific handlers must come before the catch-all dashboard handler.
+	# /track/{token} URL'leri buraya gider
+	handle /track/* {
+		reverse_proxy edge-function:8000 {
+			header_up CF-Connecting-IP {remote_host}
+		}
+	}
+	handle /functions/v1/* {
+		reverse_proxy edge-function:8000 {
+			header_up CF-Connecting-IP {remote_host}
+		}
+	}
+
+	# API (honeytoken generation, stats, etc.)
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Health endpoints (public)
+	handle /health {
+		reverse_proxy api:8000
+	}
+
+	# Next.js dashboard catch-all — keep this last.
+	handle /* {
+		reverse_proxy web:3000
+	}
+
+	# Security headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# CSP — restrictive; adjust if dashboard needs external assets
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self' data:;"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 100mb
+			roll_keep 10
+		}
+		format json
+	}
+}
+
+# Internal API subdomain (optional — for backend-to-backend)
+api.{$MIRAGE_DOMAIN} {
+	encode gzip zstd
+	reverse_proxy api:8000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+	}
+
+	# Rate limiting should be enforced by FastAPI/reverse-proxy middleware or
+	# a Caddy build that explicitly includes a rate-limit module. The stock
+	# caddy:2-alpine image does not support a rate_limit directive.
+
+	log {
+		output file /data/api.log
+		format json
+	}
+}

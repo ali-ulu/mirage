@@ -1,0 +1,135 @@
+# MIRAGE — Full Stack Production Docker Compose
+#
+# Bu compose dosyası, MIRAGE'ın tüm production-grade bileşenlerini ayağa
+# kaldırır: PostgreSQL (with Supabase-compatible schema), FastAPI core engine,
+# Next.js dashboard, Edge Function (Deno), ve Caddy reverse proxy (HTTPS).
+#
+# Kullanım:
+#   1. .env dosyasını .env.example'dan kopyala ve doldur
+#   2. docker compose up -d
+#   3. Migration'ları çalıştır:
+#        docker compose exec postgres psql -U mirage -d mirage \
+#          -f /docker-entrypoint-initdb.d/0001_initial_schema.sql
+#        docker compose exec postgres psql -U mirage -d mirage \
+#          -f /docker-entrypoint-initdb.d/0002_honeytokens.sql
+#
+# Production deploy:
+#   - Caddyfile'i gerçek domain'le güncelle
+#   - .env dosyasındaki tüm anahtarları production değerleriyle değiştir
+#   - docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # ---------- Database ----------
+  postgres:
+    image: postgres:16-alpine
+    container_name: mirage-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mirage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: ${POSTGRES_DB:-mirage}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/mirage-edge/migrations/0001_initial_schema.sql:/docker-entrypoint-initdb.d/0001_initial_schema.sql:ro
+      - ./scripts/mirage-edge/migrations/0002_honeytokens.sql:/docker-entrypoint-initdb.d/0002_honeytokens.sql:ro
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mirage}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Core Engine (FastAPI) ----------
+  api:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.api
+    container_name: mirage-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Supabase config (Point at self-hosted or cloud Supabase)
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL required}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY required}
+      # CORS
+      MIRAGE_CORS_ORIGINS: ${MIRAGE_CORS_ORIGINS:-https://localhost}
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # ---------- Edge Function (Deno) ----------
+  # Not: Production'da bu `supabase functions deploy beacon-receiver` ile
+  # Supabase Cloud'a deploy edilir. Local geliştirme için Deno container.
+  edge-function:
+    image: denoland/deno:latest
+    container_name: mirage-edge
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /app
+    volumes:
+      - ./scripts/mirage-edge/functions/beacon-receiver:/app
+    command: >
+      deno run --allow-net --allow-env --allow-read
+      /app/index.ts
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL required}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY required}
+    ports:
+      - "8001:8000"  # Edge function default port 8000
+
+  # ---------- Dashboard (Next.js) ----------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: mirage-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?NEXT_PUBLIC_SUPABASE_URL required}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?NEXT_PUBLIC_SUPABASE_ANON_KEY required}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # ---------- Reverse Proxy (Caddy, HTTPS termination) ----------
+  # Production'da gerçek domain'le değiştir: caddy.{your-domain}.com
+  caddy:
+    image: caddy:2-alpine
+    container_name: mirage-caddy
+    restart: unless-stopped
+    depends_on:
+      - api
+      - web
+      - edge-function
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      MIRAGE_DOMAIN: ${MIRAGE_DOMAIN:-mirage.local}
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

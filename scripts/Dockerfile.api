@@ -1,0 +1,67 @@
+# MIRAGE FastAPI — Production Dockerfile
+#
+# Multi-stage build:
+#   Stage 1 (builder): Install dependencies, no source
+#   Stage 2 (runtime): Slim image with only what's needed
+#
+# Usage:
+#   docker build -f Dockerfile.api -t mirage-api:latest .
+#   docker run --rm -p 8000:8000 \
+#     -e SUPABASE_URL=... \
+#     -e SUPABASE_SERVICE_ROLE_KEY=... \
+#     mirage-api:latest
+
+# ---------- Stage 1: Builder ----------
+FROM python:3.12-slim AS builder
+
+# Build deps for numpy/scipy/pandas
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy just requirements first (better layer caching)
+COPY scripts/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# ---------- Stage 2: Runtime ----------
+FROM python:3.12-slim AS runtime
+
+# Runtime deps: libpq for psycopg2, no build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /install /usr/local
+
+# Create non-root user
+RUN useradd --create-home --uid 1000 mirage
+WORKDIR /app
+
+# Copy source code
+COPY --chown=mirage:mirage scripts/ ./scripts/
+
+# Switch to non-root
+USER mirage
+
+# Expose port (FastAPI uvicorn default)
+EXPOSE 8000
+
+# Healthcheck — hit /health endpoint
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+# Run with uvicorn (production settings)
+# --proxy-headers: trust X-Forwarded-* from reverse proxy
+# --forwarded-allow-ips: only trust known proxy IPs (set via env)
+CMD ["uvicorn", "mirage.server:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "4", \
+     "--proxy-headers", \
+     "--no-access-log"]
