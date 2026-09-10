@@ -6,14 +6,7 @@ It generates statistically similar synthetic datasets, packages them into passiv
 
 ---
 
-## ⚠️ Security Notice
 
-**CRITICAL (2026-07-15):** `.env` file with production secrets was included in release archive. **Rotate immediately:**
-- Supabase Service Role Key (Regenerate in dashboard)
-- Database password (Supabase → Settings → Database)
-- MIRAGE_API_TOKEN (Generate new, update Vercel env vars)
-
-**See:** `SECURITY_INCIDENT_RESPONSE_20260715.md` for complete rotation instructions and verification steps.
 
 ---
 
