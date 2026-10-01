@@ -46,6 +46,7 @@ from .agent import (
     CanaryRegistry,
     apply_decoy_plan,
     evaluate_rules,
+    install_agent_scan_middleware,
     plan_decoy_schema,
     render_canary,
     scan_text_for_leaks,
@@ -153,7 +154,9 @@ app = FastAPI(
     version="0.4.0",
 )
 
-
+# Otomatik runtime tarama (opt-in): JSON yanıt gövdelerinde canary sızıntısı.
+# MIRAGE_SCAN_MIDDLEWARE truthy değilse no-op.
+install_agent_scan_middleware(app)
 
 
 # ---------------------------------------------------------------------------

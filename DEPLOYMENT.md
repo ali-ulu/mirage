@@ -300,6 +300,19 @@ If no key is set (or `MIRAGE_LLM_PROVIDER=none`), triage falls back to a
 deterministic heuristic. LLM keys must live in the server runtime environment,
 never in client bundles.
 
+Automatic runtime scanning (optional). When enabled, every JSON response body
+is scanned for registered prompt-canary leaks and customer regex rules; a hit
+is logged (and can be persisted to the triage ledger). Off by default:
+
+```txt
+# "1" | "true" | "yes" | "on"  (default: off)
+MIRAGE_SCAN_MIDDLEWARE=1
+```
+
+`/agent/canary*` and `/agent/scan` responses are excluded (they intentionally
+carry canaries). Scanning is synchronous, fail-safe (never breaks a response),
+and skips non-JSON and oversized (>256 KiB) bodies.
+
 The Next.js `/api/track/[token]` route is local-demo only and returns `410` in production. Use the Supabase Edge Function URL as the XLSX `base_url` for production-like tests.
 
 Before publishing, run:

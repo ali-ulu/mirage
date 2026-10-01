@@ -55,6 +55,12 @@ Canary sızıntısı `/agent/canary/check` ile aynı kod yolundan (`scan_text_fo
 triyajlanır — tek kaynak. Kurallar saf fonksiyondur, LLM gerekmez; bozuk regex
 fail-safe atlanır.
 
+Otomatik middleware (`agent/middleware.py`): opt-in (`MIRAGE_SCAN_MIDDLEWARE=1`).
+ASGI middleware JSON yanıt gövdelerini her istekte senkron tarar (canary +
+regex); sızıntıda loglar ve opsiyonel triage_sink'i çağırır. `/agent/canary*`
+ve `/agent/scan` hariç (kendi canary'lerini taşırlar). Non-JSON/büyük gövde ve
+her tarama hatası fail-safe atlanır; yanıt bozulmaz.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -91,6 +97,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_prompt_canary.py scripts/test_canary_store.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_agent_scan.py \
+  scripts/test_agent_middleware.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py \
