@@ -12,12 +12,24 @@ from .planner import (
     plan_decoy_schema,
     schema_summary,
 )
+from .prompt_canary import (
+    CanaryRegistry,
+    PromptCanary,
+    build_marker,
+    detect_canaries,
+    render_canary,
+)
 
 __all__ = [
+    "CanaryRegistry",
     "ColumnDecision",
     "DecoyPlan",
+    "PromptCanary",
     "apply_decoy_plan",
+    "build_marker",
     "build_planner_messages",
+    "detect_canaries",
     "plan_decoy_schema",
+    "render_canary",
     "schema_summary",
 ]

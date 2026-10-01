@@ -41,7 +41,12 @@ from .supabase_registry import (
 from .triage_store import BeaconTriageStore
 from .evidence_store import EvidenceChainStore
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
-from .agent import apply_decoy_plan, plan_decoy_schema
+from .agent import (
+    CanaryRegistry,
+    apply_decoy_plan,
+    plan_decoy_schema,
+    render_canary,
+)
 from .env import fail_fast_on_missing_env, is_production
 
 # Production startup check — fail fast if env is missing
@@ -68,6 +73,24 @@ def reset_registry_for_testing(client=None) -> None:
         _REGISTRY = SupabaseHoneytokenRegistry(client=client)
     else:
         _REGISTRY = None
+
+
+# Prompt-layer canary registry: in-memory (process lifetime).
+# Not yet persisted — a restart loses issued canaries; wiring to Supabase is a
+# follow-up slice. Detection within a running process works regardless.
+_CANARY_REGISTRY: Optional[CanaryRegistry] = None
+
+
+def get_canary_registry() -> CanaryRegistry:
+    global _CANARY_REGISTRY
+    if _CANARY_REGISTRY is None:
+        _CANARY_REGISTRY = CanaryRegistry()
+    return _CANARY_REGISTRY
+
+
+def reset_canary_registry_for_testing() -> None:
+    global _CANARY_REGISTRY
+    _CANARY_REGISTRY = None
 
 
 # Beacon triyaj defteri (kanıt zincirine bağlı, ayrı append-only store).
@@ -186,6 +209,20 @@ class PlanRequest(BaseModel):
 class AnonymizeRequest(BaseModel):
     data: list[dict[str, Any]] = Field(..., min_length=1, description="Table to anonymize (JSON array of objects)")
     seed: Optional[int] = Field(None, description="Random seed for reproducible decoy generation")
+
+
+class CanaryIssueRequest(BaseModel):
+    context: str = Field(
+        ...,
+        pattern="^(system_prompt|rag_document|agent_memory)$",
+        description="Where the canary will be embedded",
+    )
+    label: str = Field("", description="Optional label (e.g. 'support-rag-v2')")
+    style: str = Field("raw", pattern="^(raw|note)$", description="Rendering style")
+
+
+class CanaryCheckRequest(BaseModel):
+    text: str = Field(..., description="Text to scan for issued canary markers")
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +351,34 @@ async def agent_anonymize(req: AnonymizeRequest, request: Request) -> dict:
         "kept_columns": plan.kept_columns,
         "rows": len(decoyed),
         "data": json.loads(decoyed.to_json(orient="records")),
+    }
+
+
+@app.post("/agent/canary", status_code=201)
+def issue_prompt_canary(req: CanaryIssueRequest, request: Request) -> dict:
+    """
+    Bir AI ajanı bağlamı için prompt-layer canary üretir. İşaret system
+    prompt / RAG dokümanı / agent memory içine gömülür; sonradan başka bir
+    yerde görünürse bağlamın sızdığı anlaşılır.
+    """
+    _require_api_token(request)
+    registry = get_canary_registry()
+    canary = registry.issue(req.context, label=req.label)
+    payload = canary.to_dict()
+    payload["rendered"] = render_canary(canary, style=req.style)
+    return payload
+
+
+@app.post("/agent/canary/check")
+def check_prompt_canary(req: CanaryCheckRequest, request: Request) -> dict:
+    """Verilen metinde bu süreçte üretilmiş canary işaretlerini arar."""
+    _require_api_token(request)
+    registry = get_canary_registry()
+    matches = registry.match(req.text)
+    return {
+        "leaked": bool(matches),
+        "count": len(matches),
+        "canaries": [c.to_dict() for c in matches],
     }
 
 
