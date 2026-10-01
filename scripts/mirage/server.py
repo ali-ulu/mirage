@@ -47,6 +47,7 @@ from .agent import (
     apply_decoy_plan,
     plan_decoy_schema,
     render_canary,
+    resolve_chain_binding,
     triage_canary,
 )
 from .env import fail_fast_on_missing_env, is_production
@@ -410,12 +411,23 @@ async def check_prompt_canary(req: CanaryCheckRequest, request: Request) -> dict
     except LLMConfigError as e:
         raise HTTPException(status_code=503, detail=f"LLM misconfigured: {e}")
 
+    # Sızıntıyı ilişkili honeytoken'ın kanıt zincirine bağla (varsa).
+    binding = {"linked": False, "chain_seq": None, "chain_verified": None, "reason": None}
+    if req.token:
+        try:
+            evidence_store = get_evidence_store()
+        except SupabaseNotConfiguredError:
+            evidence_store = None
+        binding = resolve_chain_binding(evidence_store, req.token)
+    chain_ok = req.chain_verified if req.chain_verified is not None else binding["chain_verified"]
+
     leak = {
         "count": len(matches),
         "contexts": sorted({c.context for c in matches}),
         "canaries": [c.to_dict() for c in matches],
+        "chain_seq": binding["chain_seq"],
     }
-    result = await triage_canary(leak, provider=provider, chain_ok=req.chain_verified)
+    result = await triage_canary(leak, provider=provider, chain_ok=chain_ok)
 
     model = None
     if provider is not None and result.source.startswith("llm:"):
@@ -431,12 +443,14 @@ async def check_prompt_canary(req: CanaryCheckRequest, request: Request) -> dict
                 detail="Triage ledger not configured (SUPABASE_URL/SERVICE_ROLE_KEY missing)",
             )
         try:
-            store.save(req.token, result, model=model)
+            store.save(req.token, result, chain_seq=binding["chain_seq"], model=model)
         except SupabaseOperationError:
             raise HTTPException(status_code=502, detail="Failed to persist triage record")
         persisted = True
 
     payload["triage"] = result.to_dict()
+    payload["chain_seq"] = binding["chain_seq"]
+    payload["chain_linked"] = binding["linked"]
     payload["model"] = model
     payload["persisted"] = persisted
     return payload

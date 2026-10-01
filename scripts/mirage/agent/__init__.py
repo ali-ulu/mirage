@@ -5,6 +5,7 @@ Mevcut motor uçlarını (synthesizer, honeytoken registry, kanıt/triyaj) birer
 katmanı yalnızca planlama/karar zenginleştirmesi sağlar.
 """
 from .apply import apply_decoy_plan
+from .canary_evidence import resolve_chain_binding
 from .canary_triage import build_canary_triage_messages, triage_canary
 from .planner import (
     ColumnDecision,
@@ -33,6 +34,7 @@ __all__ = [
     "detect_canaries",
     "plan_decoy_schema",
     "render_canary",
+    "resolve_chain_binding",
     "schema_summary",
     "triage_canary",
 ]
