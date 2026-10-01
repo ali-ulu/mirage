@@ -26,7 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r scripts/requirements.txt requests
-      - name: Run engine / honeytoken / registry / auth / migration tests
+      - name: Run engine / honeytoken / registry / auth / evidence / migration tests
         run: |
           python -m pytest -q \
             scripts/test_mirage.py \
@@ -34,6 +34,7 @@ jobs:
             scripts/test_honeytoken_integration.py \
             scripts/test_supabase_registry.py \
             scripts/test_server_auth.py \
+            scripts/test_evidence_chain.py \
             scripts/mirage-edge/tests/test_migration.py
 
   frontend:
@@ -58,12 +59,13 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Run beacon-receiver tests
+      - name: Run beacon-receiver + evidence chain tests
         env:
           DENO_TESTING: "1"
         run: |
           deno test --no-check --allow-net --allow-env --allow-read \
-            scripts/mirage-edge/tests/beacon_receiver_test.ts
+            scripts/mirage-edge/tests/beacon_receiver_test.ts \
+            scripts/mirage-edge/tests/evidence_chain_test.ts
 
   e2e:
     name: End-to-end (Task 02 <-> Task 03)
@@ -82,4 +84,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r scripts/requirements.txt requests
       - name: Run integration script
+        env:
+          MIRAGE_EVIDENCE_HMAC_KEY: e2e-local-evidence-key
         run: python scripts/test_e2e_mirage.py
