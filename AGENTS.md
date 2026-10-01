@@ -49,6 +49,11 @@ korunur (uygulama service_role kullanır). Canlı doğrulama opt-in:
 `MIRAGE_PG_DSN=... python3 -m pytest scripts/test_team_rls_live.py` (DSN yoksa
 skip; `set role authenticated; set request.jwt.claim.sub='<uuid>'` ile taklit).
 
+Üyelik yönetimi (`team_store.py`, uçlar `/team/...`): service_role ile
+ekle/rol-güncelle/listele/kaldır. Girdi UUID + rol doğrulamasından geçer
+(geçersiz → 422). Üyelik yazımı asla `authenticated`'a bırakılmaz — 0008 RLS
+yalnızca okuma/ekleme kapısıdır; yönetim ayrı bir yetkidir.
+
 Runtime tarama (`agent/runtime.py`, `POST /agent/scan`): ajan çıktısı / log /
 araç çağrısı metnini canary ve müşteri tanımlı regex kurallara göre tarar.
 Canary sızıntısı `/agent/canary/check` ile aynı kod yolundan (`scan_text_for_leaks`)
@@ -97,7 +102,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_prompt_canary.py scripts/test_canary_store.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_agent_scan.py \
-  scripts/test_agent_middleware.py \
+  scripts/test_agent_middleware.py scripts/test_team_store.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py \
