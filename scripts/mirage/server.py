@@ -40,6 +40,7 @@ from .supabase_registry import (
 )
 from .triage_store import BeaconTriageStore
 from .evidence_store import EvidenceChainStore
+from .canary_store import SupabaseCanaryRegistry
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
 from .agent import (
     CanaryRegistry,
@@ -75,22 +76,31 @@ def reset_registry_for_testing(client=None) -> None:
         _REGISTRY = None
 
 
-# Prompt-layer canary registry: in-memory (process lifetime).
-# Not yet persisted — a restart loses issued canaries; wiring to Supabase is a
-# follow-up slice. Detection within a running process works regardless.
-_CANARY_REGISTRY: Optional[CanaryRegistry] = None
+# Prompt-layer canary registry: Supabase-backed (restart dayanıklı).
+# SUPABASE_URL/KEY yoksa in-memory CanaryRegistry'ye düşer (fail-safe); böylece
+# yerel geliştirme/testler Supabase gerektirmez. İki sınıf aynı public API'yi
+# paylaşır (issue/lookup/match/all_records).
+_CANARY_REGISTRY: Optional[Any] = None
 
 
-def get_canary_registry() -> CanaryRegistry:
+def get_canary_registry():
+    """Lazy singleton — Supabase varsa kalıcı, yoksa in-memory registry."""
     global _CANARY_REGISTRY
     if _CANARY_REGISTRY is None:
-        _CANARY_REGISTRY = CanaryRegistry()
+        try:
+            _CANARY_REGISTRY = SupabaseCanaryRegistry()
+        except SupabaseNotConfiguredError:
+            _CANARY_REGISTRY = CanaryRegistry()
     return _CANARY_REGISTRY
 
 
-def reset_canary_registry_for_testing() -> None:
+def reset_canary_registry_for_testing(client=None) -> None:
+    """Test hook — mock client inject et, in-memory'ye zorla veya None'a çevir."""
     global _CANARY_REGISTRY
-    _CANARY_REGISTRY = None
+    if client is not None:
+        _CANARY_REGISTRY = SupabaseCanaryRegistry(client=client)
+    else:
+        _CANARY_REGISTRY = None
 
 
 # Beacon triyaj defteri (kanıt zincirine bağlı, ayrı append-only store).
@@ -363,7 +373,10 @@ def issue_prompt_canary(req: CanaryIssueRequest, request: Request) -> dict:
     """
     _require_api_token(request)
     registry = get_canary_registry()
-    canary = registry.issue(req.context, label=req.label)
+    try:
+        canary = registry.issue(req.context, label=req.label)
+    except SupabaseOperationError as e:
+        raise HTTPException(status_code=503, detail=f"Canary registry unavailable: {e}")
     payload = canary.to_dict()
     payload["rendered"] = render_canary(canary, style=req.style)
     return payload

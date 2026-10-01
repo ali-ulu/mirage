@@ -28,7 +28,8 @@ değiştirir, keep kolonları aynen korur; satır sayısı/kolon sırası deği�
 (system prompt / RAG dokümanı / agent memory) yüksek-entropili bir işaret
 (`[[MIRAGE-CANARY:<uuid>]]`) gömer. İşaret başka bir yerde görünürse bağlam
 sızmış demektir. `POST /agent/canary` üretir, `POST /agent/canary/check` arar.
-Registry şu an süreç-içi (kalıcılık ayrı dilim).
+Registry Supabase-backed'dir (`canary_store.py`, migration 0005); SUPABASE env
+yoksa in-memory `CanaryRegistry`'ye düşer (restart dayanıklılığı DB varsa).
 
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
@@ -63,9 +64,11 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_server_auth.py scripts/test_evidence_chain.py \
   scripts/test_evidence_api.py scripts/test_env_config.py \
   scripts/test_llm_providers.py scripts/test_planner_agent.py \
-  scripts/test_prompt_canary.py scripts/test_beacon_triage.py \
+  scripts/test_prompt_canary.py scripts/test_canary_store.py \
+  scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
-  scripts/mirage-edge/tests/test_triage_migration.py
+  scripts/mirage-edge/tests/test_triage_migration.py \
+  scripts/mirage-edge/tests/test_canary_migration.py
 
 # Deno (edge)
 deno test --no-check --allow-net --allow-env --allow-read \
