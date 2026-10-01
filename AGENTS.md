@@ -138,6 +138,12 @@ sofistike sınıf, sinyaller, önerilen aksiyon). Sinyaller: şiddet tırmanış
 kanıt kurcalama, çok yüzeyli/yaygın sızıntı, dağıtık aktör, tekrarlı
 eskalasyon. Store'a bağımsız; LLM gerekmez.
 
+Otonom deception (`deception.py`): `DeceptionOrchestrator` honeypot oturumlarını
+otomatik sürer (`run_playbook`), sızıntıda erken durur ve taze decoy açar
+(`rotate_on_leak`). `close`/`sweep` (deterministik, enjekte edilebilir `now`) +
+`summary`; `on_leak` kancası hatası akışı bozmaz. `HoneypotEngine`'i yeniden
+kullanır.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -177,7 +183,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_agent_middleware.py scripts/test_agent_guard.py \
   scripts/test_siem_export.py scripts/test_honeypot.py scripts/test_redteam.py \
   scripts/test_mcp_gateway.py scripts/test_rag_guard.py scripts/test_behavior.py \
-  scripts/test_outbound_scan.py \
+  scripts/test_deception.py scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
