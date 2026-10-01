@@ -144,6 +144,13 @@ otomatik sürer (`run_playbook`), sızıntıda erken durur ve taze decoy açar
 `summary`; `on_leak` kancası hatası akışı bozmaz. `HoneypotEngine`'i yeniden
 kullanır.
 
+Merkle + harici zaman damgası çapası (`merkle_anchor.py`): kanıt zincirinin
+`record_hash`'lerinden RFC 6962 Merkle kökü kurar; `verify_proof` ile tek kaydın
+dahil olduğunu yalnızca kök + yolla kanıtlar. `MerkleAnchor` soyutlaması:
+`NullAnchor` (yerel/test) ve `HttpTimestampAnchor` (RFC 3161/OTS; `post`
+enjekte edilebilir, hata → fail-closed `AnchorError`). `anchor_evidence_chain`
+`chain_seq` sırasına göre çapalar.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -183,7 +190,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_agent_middleware.py scripts/test_agent_guard.py \
   scripts/test_siem_export.py scripts/test_honeypot.py scripts/test_redteam.py \
   scripts/test_mcp_gateway.py scripts/test_rag_guard.py scripts/test_behavior.py \
-  scripts/test_deception.py scripts/test_outbound_scan.py \
+  scripts/test_deception.py scripts/test_merkle_anchor.py \
+  scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
