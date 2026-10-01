@@ -110,29 +110,46 @@ Farklılaşma üç eksende:
 
 ## 5. AI/AI-agent pivot yol haritası
 
+Durum: **yol haritasındaki tüm iş kalemleri tamamlandı.** Her dilim tek amaçlı
+ayrı bir PR olarak açıldı, CI yeşil geçti ve birleştirildi.
+
 Tamamlanan dilimler (her biri ayrı PR, CI yeşil):
 
-| # | Dilim | PR |
+| # | Dilim | PR | Modül |
+|---|---|---|---|
+| 1 | Ajan guard (satır-içi API/MCP koruması) | #26 | `agent/guard.py` |
+| 2 | SIEM/SOAR dışa aktarımı (Splunk HEC / webhook) | #27 | `siem.py` |
+| 3 | Dinamik LLM honeypot (deception + canary yakalama) | #28 | `honeypot.py` |
+| 4 | Prompt red-team tarayıcı + CI injection kapısı | #29 | `redteam.py` |
+| 5 | MCP gateway (politika + sunucu riski + denetim) | #31 | `mcp_gateway.py` |
+| 6 | Zehirli RAG / veri kaynağı guard'ı | #32 | `rag_guard.py` |
+| 7 | Ajan davranış analitiği (niyet skoru) | #33 | `behavior.py` |
+| 8 | Otonom deception orkestrasyonu | #34 | `deception.py` |
+| 9 | Merkle + harici zaman damgası çapası | #35 | `merkle_anchor.py` |
+| 10 | Regex ötesi DLP (checksum + entropi + bağlam) | #36 | `dlp.py` |
+
+Parite kontrolü (rakip yetenekleri → MIRAGE karşılığı):
+
+| Rakip yeteneği | MIRAGE karşılığı | Durum |
 |---|---|---|
-| 1 | Ajan guard (satır-içi API/MCP koruması) | #26 |
-| 2 | SIEM/SOAR dışa aktarımı (Splunk HEC / webhook) | #27 |
-| 3 | Dinamik LLM honeypot (deception + canary yakalama) | #28 |
-| 4 | Prompt red-team tarayıcı + CI injection kapısı | #29 |
+| Ajan SDK/MCP hook otomatik enjeksiyon | `agent/guard.py`, `agent/middleware.py`, `mcp_gateway.py` | ✅ |
+| SIEM/SOAR export | `siem.py` (Splunk HEC / webhook) | ✅ |
+| Dinamik LLM honeypot (VelLMes/DECEIVE) | `honeypot.py` + `deception.py` | ✅ |
+| Merkle / harici timestamp anchor | `merkle_anchor.py` | ✅ |
+| Red-team / CI prompt taraması | `redteam.py` + CI kapısı | ✅ |
+| ML tabanlı DLP (regex ötesi) | `dlp.py` | ✅ |
 
-Sıradaki iş kalemleri (öncelik sırasıyla, her biri tek amaçlı PR):
+Kalan iş kalemleri: **yok.** Bundan sonrası dilim değil, ürünleştirme
+yönüdür (aşağıdaki "Sonraki yön" başlığı).
 
-1. **MCP gateway** — araç çağrılarında politika uygulama, sunucu risk
-   puanlama, denetim günlüğü (Prompt Security'nin kapsadığı, MIRAGE'da
-   henüz olmayan katman).
-2. **Otonom deception orkestrasyonu** — honeypot oturumlarını otomatik
-   açma/yönlendirme; VelLMes'in "çok-protokol" fikrinin MIRAGE zincirine
-   bağlanması.
-3. **Zehirli RAG / veri kaynağı tespiti** — gelen dokümanları canary +
-   injection taramasından geçirip bağlama almadan işaretleme.
-4. **Ajan davranış analitiği** — triyaj verisinden saldırgan niyeti skorlama
-   (rakiplerin "davranış analitiği" iddiasına karşılık).
-5. **Çok-kiracılı kanıt/triyaj** — kurumsal dağıtım için izolasyon ve
-   politika.
+### Sonraki yön (dilim değil, ürünleştirme)
+
+- **HTTP yüzeyi:** `mcp_gateway` / `rag_guard` / `deception` / `merkle_anchor` /
+  `dlp` modüllerini FastAPI uçlarına bağlamak (şu an kütüphane + CLI).
+- **Çok-kiracılı kanıt/triyaj:** `team_id` zaten var; politika/limit katmanı.
+- **Canlı entegrasyon:** gerçek Supabase migration uygulaması, gerçek LLM
+  anahtarlarıyla yeşil koşu, gerçek RFC 3161/OTS çapası (bu ortamda
+  kimlik bilgisi yok → non-claim).
 
 ## 6. Riskler ve non-claims
 
