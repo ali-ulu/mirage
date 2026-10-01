@@ -156,6 +156,11 @@ doğrulaması (TCKN, IBAN mod-97, kart Luhn) + Shannon entropisi (JWT/yüksek
 entropi sır; karakter çeşitliliği şart) + gazetteer/bağlam (ad-soyad, adres).
 Müşteri regex kuralları birleşik taranır; bozuk kural fail-safe atlanır.
 
+Şiddet seviyesi tek kaynağı (`severity.py`): `SEVERITY_ORDER` sıralaması ve
+skor→seviye eşikleri (`level_for_score`) burada; `redteam`, `dlp`, `behavior`,
+`rag_guard`, `mcp_gateway` buradan import eder. Yeni bir katman seviye
+karşılaştıracaksa burayı kullanır (kopya sabit yasak).
+
 ## API katmanı (modüler router'lar)
 
 Savunma modülleri artık **HTTP yüzeyine bağlı** (`scripts/mirage/api/`):
@@ -212,6 +217,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_mcp_gateway.py scripts/test_rag_guard.py scripts/test_behavior.py \
   scripts/test_api_defense.py \
   scripts/test_deception.py scripts/test_merkle_anchor.py scripts/test_dlp.py \
+  scripts/test_severity.py \
   scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \

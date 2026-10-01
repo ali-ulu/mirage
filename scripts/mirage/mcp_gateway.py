@@ -22,8 +22,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
-_RISK_LEVELS = ("low", "medium", "high", "critical")
-_RISK_ORDER = {lvl: i for i, lvl in enumerate(_RISK_LEVELS)}
+from .severity import SEVERITY_LEVELS as _RISK_LEVELS, SEVERITY_ORDER as _RISK_ORDER, level_for_score
 
 # Araç adı ipuçları → risk ağırlığı ve gerekçe.
 # Sıra ÖNEMLİ: daha spesifik/yüksek-riskli kalıplar önce denenir (ilk eşleşme
@@ -110,14 +109,6 @@ class GatewayDecision:
         }
 
 
-def _level_for(score: int) -> str:
-    if score >= 80:
-        return "critical"
-    if score >= 55:
-        return "high"
-    if score >= 30:
-        return "medium"
-    return "low"
 
 
 def score_server(server: MCPServerInfo) -> MCPServerRisk:
@@ -152,7 +143,7 @@ def score_server(server: MCPServerInfo) -> MCPServerRisk:
         reasons.append("şifresiz (http://) taşıma")
 
     score = min(score, 100)
-    return MCPServerRisk(score=score, level=_level_for(score), reasons=reasons)
+    return MCPServerRisk(score=score, level=level_for_score(score), reasons=reasons)
 
 
 class MCPGateway:
