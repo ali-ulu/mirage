@@ -34,16 +34,10 @@ from pydantic import BaseModel, Field
 from .synthesizer import MirageSynthesizer
 from .honeytoken import inject_honeytoken
 from .supabase_registry import (
-    SupabaseHoneytokenRegistry,
     SupabaseNotConfiguredError,
     SupabaseOperationError,
 )
-from .triage_store import BeaconTriageStore
-from .evidence_store import EvidenceChainStore
 from .siem import SiemError, export_token, get_siem_sink
-from .honeypot import HoneypotEngine
-from .team_store import TeamMembershipStore
-from .canary_store import SupabaseCanaryRegistry
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
 from .agent import (
     AgentGuard,
@@ -58,141 +52,32 @@ from .agent import (
     render_canary,
     scan_text_for_leaks,
 )
-from .env import fail_fast_on_missing_env, is_production
+from .env import fail_fast_on_missing_env
 
 # Production startup check — fail fast if env is missing
 fail_fast_on_missing_env()
 
-# Production registry: Supabase-backed (persistent across restarts).
-# Lazy-initialized so the module can be imported without SUPABASE_URL set
-# (e.g. for unit tests of unrelated endpoints).
-_REGISTRY: Optional[SupabaseHoneytokenRegistry] = None
-
-
-def get_registry() -> SupabaseHoneytokenRegistry:
-    """Lazy singleton — fails fast if Supabase env is missing."""
-    global _REGISTRY
-    if _REGISTRY is None:
-        _REGISTRY = SupabaseHoneytokenRegistry()  # raises if not configured
-    return _REGISTRY
-
-
-def reset_registry_for_testing(client=None) -> None:
-    """Test hook — inject a mock client or reset to None."""
-    global _REGISTRY
-    if client is not None:
-        _REGISTRY = SupabaseHoneytokenRegistry(client=client)
-    else:
-        _REGISTRY = None
-
-
-# Prompt-layer canary registry: Supabase-backed (restart dayanıklı).
-# SUPABASE_URL/KEY yoksa in-memory CanaryRegistry'ye düşer (fail-safe); böylece
-# yerel geliştirme/testler Supabase gerektirmez. İki sınıf aynı public API'yi
-# paylaşır (issue/lookup/match/all_records).
-_CANARY_REGISTRY: Optional[Any] = None
-
-
-def get_canary_registry():
-    """Lazy singleton — Supabase varsa kalıcı, yoksa in-memory registry."""
-    global _CANARY_REGISTRY
-    if _CANARY_REGISTRY is None:
-        try:
-            _CANARY_REGISTRY = SupabaseCanaryRegistry()
-        except SupabaseNotConfiguredError:
-            _CANARY_REGISTRY = CanaryRegistry()
-    return _CANARY_REGISTRY
-
-
-def reset_canary_registry_for_testing(client=None) -> None:
-    """Test hook — mock client inject et, in-memory'ye zorla veya None'a çevir."""
-    global _CANARY_REGISTRY
-    if client is not None:
-        _CANARY_REGISTRY = SupabaseCanaryRegistry(client=client)
-    else:
-        _CANARY_REGISTRY = None
-
-
-# Beacon triyaj defteri (kanıt zincirine bağlı, ayrı append-only store).
-_TRIAGE_STORE: Optional[BeaconTriageStore] = None
-
-
-def get_triage_store() -> BeaconTriageStore:
-    """Lazy singleton — Supabase env yoksa SupabaseNotConfiguredError."""
-    global _TRIAGE_STORE
-    if _TRIAGE_STORE is None:
-        _TRIAGE_STORE = BeaconTriageStore()
-    return _TRIAGE_STORE
-
-
-def reset_triage_store_for_testing(client=None) -> None:
-    """Test hook — inject a mock client or reset to None."""
-    global _TRIAGE_STORE
-    if client is not None:
-        _TRIAGE_STORE = BeaconTriageStore(client=client)
-    else:
-        _TRIAGE_STORE = None
-
-
-# Dinamik LLM honeypot motoru (oturum içi; canary registry'sini paylaşır).
-_HONEYPOT_ENGINE: Optional[HoneypotEngine] = None
-
-
-def get_honeypot_engine() -> HoneypotEngine:
-    """Lazy singleton — canary registry'sini paylaşır (sızıntı yakalama)."""
-    global _HONEYPOT_ENGINE
-    if _HONEYPOT_ENGINE is None:
-        _HONEYPOT_ENGINE = HoneypotEngine(registry=get_canary_registry())
-    return _HONEYPOT_ENGINE
-
-
-def reset_honeypot_engine_for_testing() -> None:
-    """Test hook — motoru sıfırlar (bir sonraki çağrıda yeniden kurulur)."""
-    global _HONEYPOT_ENGINE
-    _HONEYPOT_ENGINE = None
-
-
-# Kanıt zinciri okuma/doğrulama deposu.
-_EVIDENCE_STORE: Optional[EvidenceChainStore] = None
-
-
-def get_evidence_store() -> EvidenceChainStore:
-    """Lazy singleton — Supabase env yoksa SupabaseNotConfiguredError."""
-    global _EVIDENCE_STORE
-    if _EVIDENCE_STORE is None:
-        _EVIDENCE_STORE = EvidenceChainStore()
-    return _EVIDENCE_STORE
-
-
-def reset_evidence_store_for_testing(client=None) -> None:
-    """Test hook — inject a mock client or reset to None."""
-    global _EVIDENCE_STORE
-    if client is not None:
-        _EVIDENCE_STORE = EvidenceChainStore(client=client)
-    else:
-        _EVIDENCE_STORE = None
-
-
-# Takım üyeliği yönetimi (service_role; 0008 RLS'in temeli).
-_TEAM_STORE: Optional[TeamMembershipStore] = None
-
-
-def get_team_store() -> TeamMembershipStore:
-    """Lazy singleton — Supabase env yoksa SupabaseNotConfiguredError."""
-    global _TEAM_STORE
-    if _TEAM_STORE is None:
-        _TEAM_STORE = TeamMembershipStore()
-    return _TEAM_STORE
-
-
-def reset_team_store_for_testing(client=None) -> None:
-    """Test hook — inject a mock client or reset to None."""
-    global _TEAM_STORE
-    if client is not None:
-        _TEAM_STORE = TeamMembershipStore(client=client)
-    else:
-        _TEAM_STORE = None
-
+# ---------------------------------------------------------------------------
+# Bağımlılıklar (tek kaynak: mirage.api.deps)
+# ---------------------------------------------------------------------------
+# Store/motor singleton'ları ve API auth burada TANIMLANMAZ; `api/deps.py`'de
+# tutulur ve router'lar oradan beslenir. Aşağıdaki re-export'lar geriye dönük
+# uyumluluk içindir (testler `server.reset_*` kancalarını kullanır).
+from .api.deps import (  # noqa: E402
+    get_canary_registry,
+    get_evidence_store,
+    get_honeypot_engine,
+    get_registry,
+    get_team_store,
+    get_triage_store,
+    require_api_token as _require_api_token,
+    reset_canary_registry_for_testing,
+    reset_evidence_store_for_testing,
+    reset_honeypot_engine_for_testing,
+    reset_registry_for_testing,
+    reset_team_store_for_testing,
+    reset_triage_store_for_testing,
+)
 
 app = FastAPI(
     title="MIRAGE Synthetic Data Engine",
@@ -209,27 +94,11 @@ install_agent_scan_middleware(app)
 # MIRAGE_AGENT_GUARD truthy değilse no-op.
 install_agent_guard_middleware(app)
 
+# Modüler router'lar (yeni savunma modülleri: MCP gateway, RAG guard, deception,
+# behavior, Merkle anchor, DLP). Tek app, çok router.
+from .api.routes import register_routers  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# API auth
-# ---------------------------------------------------------------------------
-def _require_api_token(request: Request) -> None:
-    """Protect state-changing/data-export endpoints when MIRAGE_API_TOKEN is set.
-
-    Development remains frictionless if no token is configured. Production must
-    configure MIRAGE_API_TOKEN; otherwise sensitive endpoints fail closed.
-    Accepted headers: Authorization: Bearer <token> or X-API-Key: <token>.
-    """
-    expected = os.environ.get("MIRAGE_API_TOKEN")
-    if not expected:
-        if is_production():
-            raise HTTPException(status_code=503, detail="MIRAGE_API_TOKEN not configured")
-        return
-
-    authorization = request.headers.get("authorization", "")
-    provided = request.headers.get("x-api-key") or authorization.removeprefix("Bearer ").strip()
-    if provided != expected:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+register_routers(app)
 
 
 # ---------------------------------------------------------------------------
