@@ -55,6 +55,7 @@ jobs:
             scripts/test_rag_guard.py \
             scripts/test_behavior.py \
             scripts/test_deception.py \
+            scripts/test_merkle_anchor.py \
             scripts/test_outbound_scan.py \
             scripts/test_team_store.py \
             scripts/test_team_id.py \

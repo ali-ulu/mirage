@@ -59,6 +59,7 @@ The Next.js `/api/track` route is **local demo only** (in-memory, not persistent
 | `RAGGuard` (lib) | — | Screen retrieved docs (allow/quarantine/reject) before context ingestion | — |
 | `behavior.analyze` (lib) | — | Score attacker intent from triage records (behavioral analytics) | — |
 | `DeceptionOrchestrator` (lib) | — | Autonomously run honeypot playbooks and rotate decoys on leak | — |
+| `merkle_anchor` (lib) | — | Merkle root over the evidence chain + external timestamp anchor | — |
 | `/team/members` | POST | Add/update a team membership (service_role) | `MIRAGE_API_TOKEN` when configured |
 | `/team/{team_id}/members` | GET | List a team's members | `MIRAGE_API_TOKEN` when configured |
 | `/team/{team_id}/members/{user_id}` | GET/DELETE | Get role / remove membership | `MIRAGE_API_TOKEN` when configured |
