@@ -19,15 +19,19 @@ halinde DB trigger'ında hesaplanamaz (generated kolonlar BEFORE trigger'da
 henüz NULL'dur). Türetilmiş kolonlar imzalanan kaydın dışında tutulur.
 
 Kanonikleştirme: JSON, anahtarlar sıralı, boşluksuz, UTF-8 (ensure_ascii=False).
-Bu, TypeScript karşılığı `scripts/mirage-edge/functions/beacon-receiver/evidence.ts`
-ile BİREBİR aynı olmalıdır; parite `scripts/test_evidence_chain.py` içindeki
-altın (golden) fixture'larla doğrulanır.
+`received_at` önce kanonik UTC ISO-8601 biçimine normalize edilir (bkz.
+`normalize_timestamp`), böylece Postgres `timestamptz` gidiş-dönüşünden sonra da
+aynı hash üretilir. Bu, TypeScript karşılığı
+`scripts/mirage-edge/functions/beacon-receiver/evidence.ts` ile BİREBİR aynı
+olmalıdır; parite `scripts/test_evidence_chain.py` içindeki altın (golden)
+fixture'larla doğrulanır.
 """
 from __future__ import annotations
 
 import hashlib
 import hmac as hmaclib
 import json
+from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 # İlk kaydın prev_hash'i — sabit, belgelenmiş çapa.
@@ -44,12 +48,38 @@ EVIDENCE_FIELDS: tuple[str, ...] = (
 )
 
 
+def normalize_timestamp(value: str) -> str:
+    """
+    Bir timestamp'i kanonik UTC ISO-8601 biçimine getirir: milisaniye hassasiyet,
+    `Z` son eki (ör. "2026-10-01T12:00:00.000Z").
+
+    Gerekçe: `received_at`, PostgreSQL `timestamptz`'e yazılıp geri okununca
+    biçim değişir (`...000Z` -> `...+00:00`). Hash kanonik biçim üzerinden
+    hesaplandığı için ham string ile DB değeri eşleşmez ve doğrulama yanlış
+    şekilde "kurcalanmış" derdi. Değer normalize edilerek aynı an her iki
+    biçimde de aynı hash'i üretir. TS karşılığı `normalizeTimestamp` ile birebir.
+    """
+    s = str(value)
+    iso = s[:-1] + "+00:00" if s.endswith("Z") else s
+    dt = datetime.fromisoformat(iso)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    dt = dt.astimezone(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
+
+
 def canonical_json(record: dict[str, Any]) -> str:
     """
     Kanonik JSON: yalnızca kanonik alanlar, anahtarlar sıralı, boşluksuz,
     non-ASCII kaçırılmadan (ensure_ascii=False). TS tarafıyla parite zorunlu.
+
+    `received_at` önce kanonik UTC biçimine normalize edilir (bkz.
+    `normalize_timestamp`), böylece DB'den okunan eşdeğer zaman damgaları da
+    aynı hash'i üretir.
     """
     subset = {k: record.get(k) for k in EVIDENCE_FIELDS}
+    if subset.get("received_at") is not None:
+        subset["received_at"] = normalize_timestamp(str(subset["received_at"]))
     return json.dumps(
         subset,
         sort_keys=True,
@@ -111,6 +141,27 @@ def next_chain_position(head: Optional[dict[str, Any]]) -> tuple[int, str]:
     if not head:
         return 1, GENESIS_HASH
     return int(head["chain_seq"]) + 1, str(head["record_hash"])
+
+
+def resolve_evidence_key() -> str:
+    """
+    Kanıt imzalama anahtarını çözer (TS `resolveEvidenceKey` ile aynı sözleşme):
+      - MIRAGE_EVIDENCE_HMAC_KEY varsa onu kullanır.
+      - Yerel dry-run'da (production değil ve MIRAGE_EDGE_DRY_RUN açık) sabit
+        yerel anahtar döner.
+      - Aksi halde "" döner → çağıran fail-closed davranmalıdır.
+    """
+    import os
+
+    key = (os.environ.get("MIRAGE_EVIDENCE_HMAC_KEY") or "").strip()
+    if key:
+        return key
+    production = (os.environ.get("MIRAGE_ENV") or "").lower() == "production"
+    dry = (os.environ.get("MIRAGE_EDGE_DRY_RUN") or "").strip().lower()
+    dry_run = dry in ("1", "true", "yes", "on")
+    if not production and dry_run:
+        return "mirage-local-dry-run-evidence-key"
+    return ""
 
 
 def verify_chain(records: Iterable[dict[str, Any]], key: str | bytes) -> dict[str, Any]:

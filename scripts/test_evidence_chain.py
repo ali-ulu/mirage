@@ -22,6 +22,7 @@ from mirage.evidence import (  # noqa: E402
     build_evidence_record,
     canonical_json,
     compute_hmac,
+    normalize_timestamp,
     record_hash,
     verify_chain,
     verify_hmac,
@@ -113,6 +114,22 @@ def test_build_evidence_record_matches_golden():
     rec = build_evidence_record(key=KEY, **GOLDEN_1)
     assert rec["record_hash"] == GOLDEN_1_HASH
     assert rec["hmac"] == GOLDEN_1_HMAC
+
+
+def test_timestamp_normalized_to_canonical_utc():
+    assert normalize_timestamp("2026-10-01T12:00:00.000Z") == "2026-10-01T12:00:00.000Z"
+    # Postgres timestamptz gidiş-dönüşü aynı ana normalize olmalı.
+    assert normalize_timestamp("2026-10-01T12:00:00+00:00") == "2026-10-01T12:00:00.000Z"
+    assert normalize_timestamp("2026-10-01T15:00:00+03:00") == "2026-10-01T12:00:00.000Z"
+
+
+def test_db_roundtrip_timestamp_still_matches_golden():
+    """
+    `received_at`, PostgreSQL `timestamptz`'e yazılıp `+00:00` biçiminde geri
+    okunsa bile hash aynı kalmalı (aksi halde doğrulama yanlış 'kurcalanmış' der).
+    """
+    db_form = {**GOLDEN_1, "received_at": "2026-10-01T12:00:00+00:00"}
+    assert record_hash(db_form) == GOLDEN_1_HASH
 
 
 def test_verify_hmac_accepts_and_rejects():
