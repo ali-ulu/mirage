@@ -51,7 +51,9 @@ jobs:
             scripts/mirage-edge/tests/test_triage_migration.py \
             scripts/mirage-edge/tests/test_canary_migration.py \
             scripts/mirage-edge/tests/test_triage_rls_migration.py \
-            scripts/mirage-edge/tests/test_team_id_migration.py
+            scripts/mirage-edge/tests/test_team_id_migration.py \
+            scripts/mirage-edge/tests/test_team_rls_migration.py \
+            scripts/test_team_rls_live.py
 
   frontend:
     name: Frontend (vitest)
