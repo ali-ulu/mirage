@@ -54,6 +54,13 @@ ekle/rol-güncelle/listele/kaldır. Girdi UUID + rol doğrulamasından geçer
 (geçersiz → 422). Üyelik yazımı asla `authenticated`'a bırakılmaz — 0008 RLS
 yalnızca okuma/ekleme kapısıdır; yönetim ayrı bir yetkidir.
 
+Migration runner (`scripts/apply_migrations.py`): `mirage-edge/migrations/*.sql`
+dosyalarını ad sırasına göre idempotent uygular, `public.schema_migrations`'a
+yazar. `MIRAGE_PG_DSN` + `--dry-run`/`--baseline`. Canlı doğrulama:
+`MIRAGE_PG_DSN=postgresql:///postgres python3 -m pytest scripts/test_apply_migrations_live.py`
+— scratch DB oluşturur, 0001–0008'i gerçekten uygular, RLS izolasyonunu ve
+idempotentliği doğrular (DSN yoksa skip).
+
 Runtime tarama (`agent/runtime.py`, `POST /agent/scan`): ajan çıktısı / log /
 araç çağrısı metnini canary ve müşteri tanımlı regex kurallara göre tarar.
 Canary sızıntısı `/agent/canary/check` ile aynı kod yolundan (`scan_text_for_leaks`)
@@ -110,7 +117,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_agent_scan.py \
   scripts/test_agent_middleware.py scripts/test_outbound_scan.py \
-  scripts/test_team_store.py \
+  scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py \
