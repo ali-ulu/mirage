@@ -41,7 +41,7 @@ from .supabase_registry import (
 from .triage_store import BeaconTriageStore
 from .evidence_store import EvidenceChainStore
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
-from .agent import plan_decoy_schema
+from .agent import apply_decoy_plan, plan_decoy_schema
 from .env import fail_fast_on_missing_env, is_production
 
 # Production startup check — fail fast if env is missing
@@ -183,6 +183,11 @@ class PlanRequest(BaseModel):
     data: list[dict[str, Any]] = Field(..., min_length=1, description="Schema sample (JSON array of objects)")
 
 
+class AnonymizeRequest(BaseModel):
+    data: list[dict[str, Any]] = Field(..., min_length=1, description="Table to anonymize (JSON array of objects)")
+    seed: Optional[int] = Field(None, description="Random seed for reproducible decoy generation")
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -279,6 +284,37 @@ async def agent_plan(req: PlanRequest, request: Request) -> dict:
 
     plan = await plan_decoy_schema(df, provider=provider)
     return plan.to_dict()
+
+
+@app.post("/agent/anonymize")
+async def agent_anonymize(req: AnonymizeRequest, request: Request) -> dict:
+    """
+    Tabloyu plana göre anonimleştirir: decoy kolonlar sentetik veriyle
+    değiştirilir, korunacak kolonlar aynen kalır. Satır sayısı ve kolon sırası
+    korunur. `keep` kolonlar çıktıya dahil edilir; böylece çağıran, korunan
+    alanların değişmediğini doğrulayabilir.
+    """
+    _require_api_token(request)
+    try:
+        df = pd.DataFrame(req.data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Cannot parse data: {e}")
+
+    try:
+        provider = get_llm_provider()
+    except LLMConfigError as e:
+        raise HTTPException(status_code=503, detail=f"LLM misconfigured: {e}")
+
+    plan = await plan_decoy_schema(df, provider=provider)
+    decoyed = apply_decoy_plan(df, plan, seed=req.seed)
+    return {
+        "source": plan.source,
+        "strategy": plan.strategy,
+        "decoy_columns": plan.decoy_columns,
+        "kept_columns": plan.kept_columns,
+        "rows": len(decoyed),
+        "data": json.loads(decoyed.to_json(orient="records")),
+    }
 
 
 # ---------------------------------------------------------------------------

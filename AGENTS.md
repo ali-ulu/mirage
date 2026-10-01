@@ -20,6 +20,10 @@ planlar. Kimlik/anahtar kolonları **asla** decoy yapılmaz (güvenlik kısıtı
 heuristic'te hem LLM koercisyonunda uygulanır). LLM yoksa deterministik sezgisel
 yola düşer; çekirdeği bozmaz.
 
+`apply_decoy_plan(df, plan)` planı uygular: decoy kolonları sentetik veriyle
+değiştirir, keep kolonları aynen korur; satır sayısı/kolon sırası değişmez.
+`POST /agent/plan` (plan) ve `POST /agent/anonymize` (plan+uygula) uçları vardır.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç

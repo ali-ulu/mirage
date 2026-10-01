@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mirage import server  # noqa: E402
 from mirage.agent import (  # noqa: E402
+    apply_decoy_plan,
     build_planner_messages,
     plan_decoy_schema,
     schema_summary,
@@ -224,4 +225,94 @@ def test_agent_plan_endpoint_returns_plan(monkeypatch):
 def test_agent_plan_endpoint_rejects_empty_data():
     client = TestClient(server.app)
     res = client.post("/agent/plan", json={"data": []})
+    assert res.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# apply_decoy_plan
+# ---------------------------------------------------------------------------
+def test_apply_keeps_identifier_unchanged():
+    df = _df()
+    plan = _run(plan_decoy_schema(df))
+    out = apply_decoy_plan(df, plan, seed=1)
+    assert list(out["customer_id"]) == list(df["customer_id"])
+
+
+def test_apply_replaces_sensitive_columns():
+    df = _df()
+    plan = _run(plan_decoy_schema(df))
+    out = apply_decoy_plan(df, plan, seed=1)
+    assert list(out["email"]) != list(df["email"])
+    assert list(out["full_name"]) != list(df["full_name"])
+
+
+def test_apply_preserves_shape_and_order():
+    df = _df()
+    plan = _run(plan_decoy_schema(df))
+    out = apply_decoy_plan(df, plan, seed=1)
+    assert list(out.columns) == list(df.columns)
+    assert len(out) == len(df)
+
+
+def test_apply_is_deterministic_with_seed():
+    df = _df()
+    plan = _run(plan_decoy_schema(df))
+    a = apply_decoy_plan(df, plan, seed=42)
+    b = apply_decoy_plan(df, plan, seed=42)
+    assert a.equals(b)
+
+
+def test_apply_does_not_mutate_input():
+    df = _df()
+    original = df.copy(deep=True)
+    plan = _run(plan_decoy_schema(df))
+    apply_decoy_plan(df, plan, seed=1)
+    assert df.equals(original)
+
+
+def test_apply_with_no_decoy_columns_returns_copy():
+    df = _df()
+    plan = _run(plan_decoy_schema(df))
+    # Sadece kimlik kolonu içeren bir plan simüle et: tüm kolonları keep yap.
+    from mirage.agent import ColumnDecision, DecoyPlan
+
+    keep_all = DecoyPlan(
+        decisions=[
+            ColumnDecision(d.name, d.col_type, "keep", d.sensitivity, d.rationale)
+            for d in plan.decisions
+        ],
+        strategy="tümü korunur",
+        source="test",
+    )
+    out = apply_decoy_plan(df, keep_all, seed=1)
+    assert out.equals(df)
+    assert out is not df
+
+
+# ---------------------------------------------------------------------------
+# HTTP endpoint (/agent/anonymize)
+# ---------------------------------------------------------------------------
+def test_agent_anonymize_endpoint(monkeypatch):
+    monkeypatch.delenv("MIRAGE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    df = _df()
+    client = TestClient(server.app)
+    res = client.post(
+        "/agent/anonymize",
+        json={"data": df.to_dict(orient="records"), "seed": 7},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["rows"] == len(df)
+    assert "customer_id" in body["kept_columns"]
+    assert "email" in body["decoy_columns"]
+    out = pd.DataFrame(body["data"])
+    assert list(out["customer_id"]) == list(df["customer_id"])
+    assert list(out["email"]) != list(df["email"])
+
+
+def test_agent_anonymize_endpoint_rejects_empty_data():
+    client = TestClient(server.app)
+    res = client.post("/agent/anonymize", json={"data": []})
     assert res.status_code == 422
