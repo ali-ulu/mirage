@@ -32,7 +32,10 @@ Registry Supabase-backed'dir (`canary_store.py`, migration 0005); SUPABASE env
 yoksa in-memory `CanaryRegistry`'ye düşer (restart dayanıklılığı DB varsa).
 `/agent/canary/check` sızıntı bulunca triyajlar (`canary_triage.py`, LLM
 opsiyonel) ve `persist=True`+`token` verilirse append-only triyaj defterine
-yazar (sızıntı = beacon gibi ele alınır).
+yazar (sızıntı = beacon gibi ele alınır). `token` verilirse sızıntı, ilişkili
+honeytoken'ın kanıt zincirine bağlanır (`canary_evidence.py`): zincir başının
+`chain_seq`'i ve doğrulama sonucu (`chain_verified`) triyaja taşınır. Kanıt
+zincirinin kendisine yazılmaz (edge function'a ait, kripto bütünlüğü var).
 
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
@@ -68,7 +71,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_evidence_api.py scripts/test_env_config.py \
   scripts/test_llm_providers.py scripts/test_planner_agent.py \
   scripts/test_prompt_canary.py scripts/test_canary_store.py \
-  scripts/test_canary_triage.py scripts/test_beacon_triage.py \
+  scripts/test_canary_triage.py scripts/test_canary_evidence.py \
+  scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py \
   scripts/mirage-edge/tests/test_canary_migration.py
