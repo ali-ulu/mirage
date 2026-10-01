@@ -64,7 +64,14 @@ Otomatik middleware (`agent/middleware.py`): opt-in (`MIRAGE_SCAN_MIDDLEWARE=1`)
 ASGI middleware JSON yanıt gövdelerini her istekte senkron tarar (canary +
 regex); sızıntıda loglar ve opsiyonel triage_sink'i çağırır. `/agent/canary*`
 ve `/agent/scan` hariç (kendi canary'lerini taşırlar). Non-JSON/büyük gövde ve
-her tarama hatası fail-safe atlanır; yanıt bozulmaz.
+her tarama hatası fail-safe atlanır; yanıt bozulmaz. `MIRAGE_SCAN_PERSIST=1`
+ise `build_triage_sink()` bağlanır: sızıntı senkron heuristic ile triyajlanıp
+`beacon_triage`'ya yazılır (LLM yok; yanıt yolu bloklanmaz).
+
+Giden tarama (`agent/outbound.py`): `OutboundScanner` ajan→LLM/araç GİDEN
+metnini tarar. `block=True` → ihlalde `OutboundLeakError` (fail-closed;
+tarama hatası da bloklar). `POST /agent/scan` `block: true` → ihlalde 422
+(metin upstream'e gitmez), temizde 200. Middleware ile aynı `evaluate_rules`.
 
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
@@ -102,7 +109,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_prompt_canary.py scripts/test_canary_store.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_agent_scan.py \
-  scripts/test_agent_middleware.py scripts/test_team_store.py \
+  scripts/test_agent_middleware.py scripts/test_outbound_scan.py \
+  scripts/test_team_store.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py \

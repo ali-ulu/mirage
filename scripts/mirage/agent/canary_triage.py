@@ -72,6 +72,17 @@ def _heuristic(leak: dict[str, Any], chain_ok: Optional[bool]) -> TriageResult:
     )
 
 
+def heuristic_canary_triage(
+    leak: dict[str, Any], chain_ok: Optional[bool] = None
+) -> TriageResult:
+    """
+    Senkron, deterministik canary triyajı (LLM yok). Yanıt yolunda bloklamayan
+    çağıranlar (ör. ASGI middleware triyaj sink'i) için public sarmalayıcı;
+    `triage_canary` ile aynı ağırlık/heuristik mantığını paylaşır (tek kaynak).
+    """
+    return _heuristic(leak, chain_ok)
+
+
 def build_canary_triage_messages(
     leak: dict[str, Any], chain_ok: Optional[bool]
 ) -> list[LLMMessage]:

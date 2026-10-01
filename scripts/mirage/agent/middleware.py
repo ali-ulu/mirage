@@ -146,12 +146,46 @@ class AgentScanMiddleware:
         return evaluate_rules(text, self.rules)
 
 
-def install_agent_scan_middleware(app, *, registry: Any = None, **kwargs) -> None:
+def scan_persist_enabled() -> bool:
+    return os.environ.get("MIRAGE_SCAN_PERSIST", "").strip().lower() in _TRUTHY
+
+
+def build_triage_sink() -> Callable[[str, dict[str, Any]], None]:
+    """
+    Varsayılan triyaj sink'i: sızıntıyı senkron heuristic ile triyajlar ve
+    append-only triyaj defterine (`beacon_triage`) yazar. Token, sızan
+    canary'den türetilir; defter yapılandırılmamışsa sessizce atlanır (log).
+
+    Yalnızca `MIRAGE_SCAN_PERSIST` truthy olduğunda `install_...` tarafından
+    bağlanır. LLM KULLANILMAZ — yanıt yolu bloklanmaz (senkron heuristic).
+    """
+    from .. import server as _server
+    from .canary_triage import heuristic_canary_triage
+
+    def _sink(text: str, leak: dict[str, Any]) -> None:
+        canaries = leak.get("canaries") or []
+        token = canaries[0].get("token") if canaries else None
+        if not token:
+            return  # token yoksa defter satırı yazılamaz (şema token ister)
+        team_id = canaries[0].get("team_id")
+        result = heuristic_canary_triage(leak)
+        try:
+            store = _server.get_triage_store()
+        except Exception:
+            logger.info("scan triage sink: triage ledger not configured; skipping persist")
+            return
+        store.save(token, result, team_id=team_id)
+
+    return _sink
+
+
+def install_agent_scan_middleware(app, *, registry: Any = None, persist: bool = False, **kwargs) -> None:
     """
     FastAPI uygulamasına tarama middleware'ini ekler. `registry` verilmezse
     server'ın canary registry'si kullanılır (uygulama yolu service_role).
 
-    Yalnızca `MIRAGE_SCAN_MIDDLEWARE` truthy olduğunda etkilidir.
+    Yalnızca `MIRAGE_SCAN_MIDDLEWARE` truthy olduğunda etkilidir. `persist`
+    (veya `MIRAGE_SCAN_PERSIST`) truthy ise sızıntılar triyaj defterine yazılır.
     """
     if not scan_middleware_enabled():
         return
@@ -159,13 +193,17 @@ def install_agent_scan_middleware(app, *, registry: Any = None, **kwargs) -> Non
 
     if registry is None:
         registry = _server.get_canary_registry()
+    if "triage_sink" not in kwargs and (persist or scan_persist_enabled()):
+        kwargs["triage_sink"] = build_triage_sink()
     app.add_middleware(AgentScanMiddleware, registry=registry, **kwargs)
 
 
 __all__ = [
     "AgentScanMiddleware",
     "DEFAULT_EXCLUDED_PREFIXES",
+    "build_triage_sink",
     "install_agent_scan_middleware",
     "scan_middleware_enabled",
+    "scan_persist_enabled",
     "should_scan_path",
 ]

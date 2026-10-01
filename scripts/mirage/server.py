@@ -283,6 +283,10 @@ class ScanRequest(BaseModel):
     persist: bool = Field(False, description="Persist a triage record when a canary leak is found")
     chain_verified: Optional[bool] = Field(None, description="Evidence chain verification result, if known")
     team_id: Optional[str] = Field(None, description="Multi-tenant owner recorded on the triage record")
+    block: bool = Field(
+        False,
+        description="Giden (upstream) kapı modu: ihlalde 422 döndür (metin gönderilmesin)",
+    )
 
 
 class TeamMemberRequest(BaseModel):
@@ -537,6 +541,10 @@ async def scan_agent_output(req: ScanRequest, request: Request) -> dict:
     leak["rule_hits"] = len(findings)
     leak["source"] = req.source
     leak["clean"] = not leak["leaked"] and not findings
+
+    # Giden (upstream) kapı modu: ihlal varsa 422 ile durdur — metin gönderilmez.
+    if req.block and not leak["clean"]:
+        raise HTTPException(status_code=422, detail=leak)
     return leak
 
 

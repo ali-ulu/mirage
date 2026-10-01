@@ -6,13 +6,18 @@ katmanı yalnızca planlama/karar zenginleştirmesi sağlar.
 """
 from .apply import apply_decoy_plan
 from .canary_evidence import resolve_chain_binding
-from .canary_triage import build_canary_triage_messages, triage_canary
+from .canary_triage import (
+    build_canary_triage_messages,
+    heuristic_canary_triage,
+    triage_canary,
+)
 from .middleware import (
     AgentScanMiddleware,
     install_agent_scan_middleware,
     scan_middleware_enabled,
     should_scan_path,
 )
+from .outbound import OutboundLeakError, OutboundScanner
 from .runtime import evaluate_rules, scan_text_for_leaks
 from .planner import (
     ColumnDecision,
@@ -34,6 +39,8 @@ __all__ = [
     "CanaryRegistry",
     "ColumnDecision",
     "DecoyPlan",
+    "OutboundLeakError",
+    "OutboundScanner",
     "PromptCanary",
     "apply_decoy_plan",
     "build_canary_triage_messages",
@@ -41,6 +48,7 @@ __all__ = [
     "build_planner_messages",
     "detect_canaries",
     "evaluate_rules",
+    "heuristic_canary_triage",
     "install_agent_scan_middleware",
     "plan_decoy_schema",
     "render_canary",

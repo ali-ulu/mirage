@@ -313,6 +313,14 @@ MIRAGE_SCAN_MIDDLEWARE=1
 carry canaries). Scanning is synchronous, fail-safe (never breaks a response),
 and skips non-JSON and oversized (>256 KiB) bodies.
 
+When `MIRAGE_SCAN_PERSIST=1`, detected leaks are triaged (synchronous
+heuristic, no LLM) and written to the append-only `beacon_triage` ledger.
+
+Outbound (upstream) scanning. `POST /agent/scan` with `block: true` returns
+`422` when the text contains a canary or a customer rule hit, so the caller
+does not forward it upstream. The reusable `OutboundScanner` (`agent/outbound.py`)
+is fail-closed in block mode.
+
 The Next.js `/api/track/[token]` route is local-demo only and returns `410` in production. Use the Supabase Edge Function URL as the XLSX `base_url` for production-like tests.
 
 Before publishing, run:
