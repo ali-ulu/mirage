@@ -42,6 +42,13 @@ Multi-tenant (`team_id`): `honeytokens` (0002), `prompt_canaries` ve
 ve `/agent/canary`, `/agent/canary/check`, `/agent/scan`, `/honeytoken` uçları
 `team_id` kabul eder. `all_records`/`list_for_token` team_id ile filtreler.
 
+Tenant RLS (0008): `team_members` + `current_team_ids()` (JWT `sub`'tan çözer).
+`authenticated` yalnızca üye olduğu takımları SELECT/INSERT eder; UPDATE/DELETE
+policy'si yok (deny-by-default, append-only). `service_role` policy'leri
+korunur (uygulama service_role kullanır). Canlı doğrulama opt-in:
+`MIRAGE_PG_DSN=... python3 -m pytest scripts/test_team_rls_live.py` (DSN yoksa
+skip; `set role authenticated; set request.jwt.claim.sub='<uuid>'` ile taklit).
+
 Runtime tarama (`agent/runtime.py`, `POST /agent/scan`): ajan çıktısı / log /
 araç çağrısı metnini canary ve müşteri tanımlı regex kurallara göre tarar.
 Canary sızıntısı `/agent/canary/check` ile aynı kod yolundan (`scan_text_for_leaks`)
@@ -89,7 +96,9 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/mirage-edge/tests/test_triage_migration.py \
   scripts/mirage-edge/tests/test_canary_migration.py \
   scripts/mirage-edge/tests/test_triage_rls_migration.py \
-  scripts/mirage-edge/tests/test_team_id_migration.py
+  scripts/mirage-edge/tests/test_team_id_migration.py \
+  scripts/mirage-edge/tests/test_team_rls_migration.py \
+  scripts/test_team_rls_live.py
 
 # Deno (edge)
 deno test --no-check --allow-net --allow-env --allow-read \
