@@ -7,6 +7,12 @@ katmanı yalnızca planlama/karar zenginleştirmesi sağlar.
 from .apply import apply_decoy_plan
 from .canary_evidence import resolve_chain_binding
 from .canary_triage import build_canary_triage_messages, triage_canary
+from .middleware import (
+    AgentScanMiddleware,
+    install_agent_scan_middleware,
+    scan_middleware_enabled,
+    should_scan_path,
+)
 from .runtime import evaluate_rules, scan_text_for_leaks
 from .planner import (
     ColumnDecision,
@@ -24,6 +30,7 @@ from .prompt_canary import (
 )
 
 __all__ = [
+    "AgentScanMiddleware",
     "CanaryRegistry",
     "ColumnDecision",
     "DecoyPlan",
@@ -34,10 +41,13 @@ __all__ = [
     "build_planner_messages",
     "detect_canaries",
     "evaluate_rules",
+    "install_agent_scan_middleware",
     "plan_decoy_schema",
     "render_canary",
     "resolve_chain_binding",
+    "scan_middleware_enabled",
     "schema_summary",
     "scan_text_for_leaks",
+    "should_scan_path",
     "triage_canary",
 ]
