@@ -54,7 +54,7 @@ The Next.js `/api/track` route is **local demo only** (in-memory, not persistent
 | `/siem/export/{token}` | POST | Export evidence + triage as SIEM events | `MIRAGE_API_TOKEN` when configured |
 | `/honeypot/session` | POST | Open a dynamic LLM deception session | `MIRAGE_API_TOKEN` when configured |
 | `/honeypot/session/{id}/message` | POST | Send an attacker message; catch canary leaks | `MIRAGE_API_TOKEN` when configured |
-| `mirage.redteam` (CLI) | — | Scan prompt artifacts for injection / jailbreak / hidden Unicode | — |
+| `python -m mirage` (CLI) | — | Scan prompt artifacts for injection / jailbreak / hidden Unicode | — |
 | `/team/members` | POST | Add/update a team membership (service_role) | `MIRAGE_API_TOKEN` when configured |
 | `/team/{team_id}/members` | GET | List a team's members | `MIRAGE_API_TOKEN` when configured |
 | `/team/{team_id}/members/{user_id}` | GET/DELETE | Get role / remove membership | `MIRAGE_API_TOKEN` when configured |

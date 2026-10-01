@@ -67,7 +67,7 @@ jobs:
       - name: Red-team scan (prompt injection gate)
         run: |
           cd scripts
-          python -m mirage.redteam . ../AGENTS.md ../README.md ../DEPLOYMENT.md \
+          python -m mirage . ../AGENTS.md ../README.md ../DEPLOYMENT.md \
             --fail-on=critical --exclude='*test_*' --exclude='*/fixtures/*'
 
   frontend:

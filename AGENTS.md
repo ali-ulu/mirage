@@ -112,8 +112,9 @@ sözleşme: LLM opsiyonel, hata çekirdeği bozmaz.
 
 Prompt red-team tarayıcısı (`redteam.py`): depodaki prompt artefaktlarını
 injection/jailbreak/sızdırma/gizli-Unicode/canary için tarar. CI'da
-`python -m mirage.redteam . ../AGENTS.md ... --fail-on=critical` kapısı olarak
-çalışır. Varsayılan olarak yalnızca prompt artefaktlarını (md/txt/json/yaml/…)
+`python -m mirage . ../AGENTS.md ... --fail-on=critical` kapısı olarak
+çalışır (ayrıca `python -m mirage.redteam <path>`). Varsayılan olarak yalnızca
+prompt artefaktlarını (md/txt/json/yaml/…)
 tarar; **kod dosyaları kural metinlerini meşru içerdiği için** dışlanır
 (`--include=.py` ile eklenir). `--fail-on`, `--exclude=GLOB` destekler.
 
