@@ -52,6 +52,8 @@ The Next.js `/api/track` route is **local demo only** (in-memory, not persistent
 | `/agent/scan` | POST | Runtime scan: canary + customer regex rules | `MIRAGE_API_TOKEN` when configured |
 | `/agent/proxy` | POST | Inline guard for an outbound API call (422 on leak) | `MIRAGE_API_TOKEN` when configured |
 | `/siem/export/{token}` | POST | Export evidence + triage as SIEM events | `MIRAGE_API_TOKEN` when configured |
+| `/honeypot/session` | POST | Open a dynamic LLM deception session | `MIRAGE_API_TOKEN` when configured |
+| `/honeypot/session/{id}/message` | POST | Send an attacker message; catch canary leaks | `MIRAGE_API_TOKEN` when configured |
 | `/team/members` | POST | Add/update a team membership (service_role) | `MIRAGE_API_TOKEN` when configured |
 | `/team/{team_id}/members` | GET | List a team's members | `MIRAGE_API_TOKEN` when configured |
 | `/team/{team_id}/members/{user_id}` | GET/DELETE | Get role / remove membership | `MIRAGE_API_TOKEN` when configured |

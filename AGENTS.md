@@ -102,6 +102,14 @@ Kanıt zinciri önce doğrulanır, `chain_verified` olaylara işlenir. Env:
 `MIRAGE_SIEM_SINK=hec|webhook|console|none` + `MIRAGE_SIEM_URL` /
 `MIRAGE_SIEM_TOKEN` / `MIRAGE_SIEM_INDEX` / `MIRAGE_SIEM_HEADERS`.
 
+Dinamik LLM honeypot (`honeypot.py`, `/honeypot/session*`): VelLMes/DECEIVE
+benzeri deception. `HoneypotEngine.create_session` LLM ile (yoksa deterministik
+uydurma) persona üretir; persona sırrına **canary işlenir**. Saldırganın her
+mesajı `respond` ile taranır; canary sızdırırsa `leaked=True` (yakalama) ve
+`persist` ile triyaj defterine yazılır. LLM'e verilen sistem talimatı gerçek
+veri üretmeyi yasaklar (yalnızca synthetic). `agent/planner.py` ile aynı
+sözleşme: LLM opsiyonel, hata çekirdeği bozmaz.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -139,7 +147,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_llm_live.py scripts/test_agent_scan.py \
   scripts/test_agent_middleware.py scripts/test_agent_guard.py \
-  scripts/test_siem_export.py scripts/test_outbound_scan.py \
+  scripts/test_siem_export.py scripts/test_honeypot.py \
+  scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
