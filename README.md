@@ -55,6 +55,7 @@ The Next.js `/api/track` route is **local demo only** (in-memory, not persistent
 | `/honeypot/session` | POST | Open a dynamic LLM deception session | `MIRAGE_API_TOKEN` when configured |
 | `/honeypot/session/{id}/message` | POST | Send an attacker message; catch canary leaks | `MIRAGE_API_TOKEN` when configured |
 | `python -m mirage` (CLI) | — | Scan prompt artifacts for injection / jailbreak / hidden Unicode | — |
+| `MCPGateway` (lib) | — | Policy + server risk scoring + audit before an MCP tool call | — |
 | `/team/members` | POST | Add/update a team membership (service_role) | `MIRAGE_API_TOKEN` when configured |
 | `/team/{team_id}/members` | GET | List a team's members | `MIRAGE_API_TOKEN` when configured |
 | `/team/{team_id}/members/{user_id}` | GET/DELETE | Get role / remove membership | `MIRAGE_API_TOKEN` when configured |
