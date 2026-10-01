@@ -149,5 +149,6 @@ Live beacon behavior is viewer-dependent. Excel Protected View, external-content
 - `SECURITY_INCIDENT_RESPONSE_20260715.md` — Critical secret rotation incident and prevention
 - `BEACON_RECEIVER_BOUNDARY.md` — Canonical vs demo receiver clarification
 - `MIRAGE_V2_PLAN_VE_RAPOR.md` — Roadmap and findings
+- `PAZAR_ANALIZI_VE_AI_PIVOT.md` — Market analysis and AI/AI-agent pivot roadmap
 - `QUALITY_REPORT.md` — Test results
 - `DEPLOYMENT.md` — Setup and deployment
