@@ -44,9 +44,13 @@ from .team_store import TeamMembershipStore
 from .canary_store import SupabaseCanaryRegistry
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
 from .agent import (
+    AgentGuard,
     CanaryRegistry,
+    GuardBlocked,
     apply_decoy_plan,
     evaluate_rules,
+    get_agent_guard,
+    install_agent_guard_middleware,
     install_agent_scan_middleware,
     plan_decoy_schema,
     render_canary,
@@ -179,6 +183,11 @@ app = FastAPI(
 # Otomatik runtime tarama (opt-in): JSON yanıt gövdelerinde canary sızıntısı.
 # MIRAGE_SCAN_MIDDLEWARE truthy değilse no-op.
 install_agent_scan_middleware(app)
+
+# Satır-içi ajan koruması (opt-in): /agent/proxy uçlarına GİDEN istek gövdelerini
+# uygulamaya ulaşmadan önce tarar; ihlalde 422 (upstream'e iletilmez).
+# MIRAGE_AGENT_GUARD truthy değilse no-op.
+install_agent_guard_middleware(app)
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +555,44 @@ async def scan_agent_output(req: ScanRequest, request: Request) -> dict:
     if req.block and not leak["clean"]:
         raise HTTPException(status_code=422, detail=leak)
     return leak
+
+
+class ProxyCallRequest(BaseModel):
+    url: str = Field(..., description="Upstream target URL the agent wants to call")
+    method: str = Field("POST", description="HTTP method")
+    headers: dict[str, str] = Field(default_factory=dict, description="Outbound headers")
+    body: Any = Field(None, description="Outbound body (scanned before the call is made)")
+    rules: list[ScanRule] = Field(default_factory=list, description="Customer-defined regex rules")
+
+
+@app.post("/agent/proxy")
+async def agent_proxy(req: ProxyCallRequest, request: Request) -> dict:
+    """
+    Ajanın giden API çağrısı için satır-içi kapı (inline guard).
+
+    Gövde, upstream'e GÖNDERİLMEDEN önce canary + müşteri regex kurallarına göre
+    taranır. `MIRAGE_AGENT_GUARD` truthy ise ihlal `GuardBlocked` ile 422 döner ve
+    çağrı hiç yapılmaz; aksi halde yalnızca raporlanır (`enforced=false`).
+
+    Bu uç, gerçek giden çağrıyı MIRAGE yapmaz (SSRF yüzeyi açmamak için); kararı
+    uygulayan istemcidir. Amaç, ajanın dış dünyaya dokunduğu sınırda deterministik
+    bir engelleme/yakalama noktası sağlamaktır.
+    """
+    _require_api_token(request)
+    guard: AgentGuard = get_agent_guard(rules=[r.model_dump() for r in req.rules])
+    text = req.body if isinstance(req.body, str) else json.dumps(req.body, ensure_ascii=False)
+    try:
+        report = guard.guard_api_call(text, surface="api-proxy")
+    except GuardBlocked as blocked:
+        raise HTTPException(status_code=422, detail=blocked.leak)
+    return {
+        "enforced": guard.enforce,
+        "clean": report.get("clean", True),
+        "blocked": False,
+        "url": req.url,
+        "method": req.method,
+        "leak": report,
+    }
 
 
 # ---------------------------------------------------------------------------

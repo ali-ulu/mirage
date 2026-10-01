@@ -17,6 +17,16 @@ from .middleware import (
     scan_middleware_enabled,
     should_scan_path,
 )
+from .guard import (
+    AgentGuard,
+    AgentGuardMiddleware,
+    GuardBlocked,
+    build_guard_sink,
+    get_agent_guard,
+    guard_enabled,
+    guard_persist_enabled,
+    install_agent_guard_middleware,
+)
 from .outbound import OutboundLeakError, OutboundScanner
 from .runtime import evaluate_rules, scan_text_for_leaks
 from .planner import (
@@ -35,12 +45,20 @@ from .prompt_canary import (
 )
 
 __all__ = [
+    "AgentGuard",
+    "AgentGuardMiddleware",
     "AgentScanMiddleware",
     "CanaryRegistry",
     "ColumnDecision",
     "DecoyPlan",
+    "GuardBlocked",
     "OutboundLeakError",
     "OutboundScanner",
+    "build_guard_sink",
+    "get_agent_guard",
+    "guard_enabled",
+    "guard_persist_enabled",
+    "install_agent_guard_middleware",
     "PromptCanary",
     "apply_decoy_plan",
     "build_canary_triage_messages",

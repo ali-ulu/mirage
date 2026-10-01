@@ -346,6 +346,32 @@ Outbound (upstream) scanning. `POST /agent/scan` with `block: true` returns
 does not forward it upstream. The reusable `OutboundScanner` (`agent/outbound.py`)
 is fail-closed in block mode.
 
+Inline agent guard (optional). Blocks/denies and catches leaks at the exact
+moment an agent calls an API or an MCP tool. `AgentGuard` (`agent/guard.py`)
+reuses `OutboundScanner`, is fail-closed, and — when persisting is on —
+triages the hit into the append-only `beacon_triage` ledger. Off by default:
+
+```txt
+# "1" | "true" | "yes" | "on"  (default: off)
+MIRAGE_AGENT_GUARD=1
+# persist blocked leaks to the triage ledger (default: off)
+MIRAGE_GUARD_PERSIST=1
+# request-body prefixes protected by the ASGI middleware (default: /agent/proxy)
+MIRAGE_GUARD_PATHS=/agent/proxy
+```
+
+Two integration surfaces:
+
+- **API calls** — `AgentGuardMiddleware` (ASGI) scans the outbound request body
+  to protected prefixes *before* the app handles it and returns `422` on a hit,
+  so the request never reaches upstream. `POST /agent/proxy` exposes the same
+  gate manually. MIRAGE does not perform the upstream call itself (no SSRF
+  surface); the caller enforces the verdict.
+- **MCP calls** — `AgentGuard.guard_mcp_message(message)` recursively scans a
+  JSON-RPC message (`tools/call` arguments, `params.prompt`, `params.messages`,
+  `resources/read` content) and, in enforce mode, returns a JSON-RPC `error`
+  (code `-32000`) instead of executing the leaking `tools/call`.
+
 The Next.js `/api/track/[token]` route is local-demo only and returns `410` in production. Use the Supabase Edge Function URL as the XLSX `base_url` for production-like tests.
 
 Before publishing, run:

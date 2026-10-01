@@ -47,6 +47,7 @@ jobs:
             scripts/test_llm_live.py \
             scripts/test_agent_scan.py \
             scripts/test_agent_middleware.py \
+            scripts/test_agent_guard.py \
             scripts/test_outbound_scan.py \
             scripts/test_team_store.py \
             scripts/test_team_id.py \

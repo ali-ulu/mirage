@@ -80,6 +80,19 @@ metnini tarar. `block=True` → ihlalde `OutboundLeakError` (fail-closed;
 tarama hatası da bloklar). `POST /agent/scan` `block: true` → ihlalde 422
 (metin upstream'e gitmez), temizde 200. Middleware ile aynı `evaluate_rules`.
 
+Satır-içi ajan koruması (`agent/guard.py`): ajanın dış dünyaya dokunduğu iki
+sınırda **istek gönderilmeden** karar verir. `AgentGuard.guard_api_call(payload)`
+giden API gövdesini tarar, ihlalde `GuardBlocked` yükseltir (çağrı yapılmaz);
+`guard_mcp_message(msg)` MCP JSON-RPC mesajını (tools/call arguments, sampling
+prompt, resources/read) özyinelemeli tarar ve enforce'ta ihlalli `tools/call`
+yerine JSON-RPC `error` (kod -32000) döndürür. `OutboundScanner`'i yeniden
+kullanır (tek kaynak). Fail-closed. Opt-in: `MIRAGE_AGENT_GUARD=1`;
+`MIRAGE_GUARD_PERSIST=1` ile ihlaller triyaj defterine yazılır.
+`AgentGuardMiddleware` (ASGI) `/agent/proxy` uçlarına GİDEN istek gövdelerini
+uygulamaya ulaşmadan tarar; ihlalde **422** döner (upstream'e iletilmez).
+`POST /agent/proxy` aynı kapıyı manuel sunar (gerçek giden çağrıyı MIRAGE
+yapmaz — SSRF yüzeyi yok; kararı uygulayan istemcidir).
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -116,7 +129,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_prompt_canary.py scripts/test_canary_store.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_llm_live.py scripts/test_agent_scan.py \
-  scripts/test_agent_middleware.py scripts/test_outbound_scan.py \
+  scripts/test_agent_middleware.py scripts/test_agent_guard.py \
+  scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
