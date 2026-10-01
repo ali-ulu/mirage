@@ -18,6 +18,12 @@ import {
   createClient,
   type SupabaseClient as RealSupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildEvidenceRecord,
+  GENESIS_HASH,
+  getChainHead,
+  resolveEvidenceKey,
+} from "./evidence.ts";
 
 // =============================================================================
 // Tipler
@@ -433,15 +439,47 @@ export async function handleRequest(
     return jsonResponse(400, { error: "validation failed", details: validation.errors });
   }
 
-  // 8. triggered_beacons tablosuna insert
+  // 8. Kanıt zinciri: hash + HMAC hesapla, append-only kayda ekle.
   // (sabotage_logs tablosu DB-side trigger ile triggered_beacons insert'inde
   // otomatik doldurulur — burada ayrıca yazmaya gerek yok)
+  const evidenceKey = resolveEvidenceKey();
+  if (!evidenceKey) {
+    // Fail-closed: imzalama anahtarı yoksa kanıt üretilemez. Yanlış/eksik
+    // kanıt yazmak yerine olayı logla ve 503 dön.
+    console.error("evidence signing key unavailable (MIRAGE_EVIDENCE_HMAC_KEY missing)");
+    await logSabotageEvent(client, {
+      eventType: "evidence_key_missing",
+      token,
+      ip: clientInfo.ip || null,
+      details: { reason: "evidence signing key unavailable" },
+    });
+    return jsonResponse(503, { error: "evidence signing unavailable" });
+  }
+
   try {
+    const head = await getChainHead(client, payload.token);
+    const chainSeq = head ? Number(head.chain_seq) + 1 : 1;
+    const prevHash = head ? head.record_hash : GENESIS_HASH;
+    const evidence = await buildEvidenceRecord(
+      {
+        token: payload.token,
+        ip: payload.ip,
+        user_agent: payload.user_agent,
+        received_at: payload.received_at,
+        chain_seq: chainSeq,
+        prev_hash: prevHash,
+      },
+      evidenceKey,
+    );
     await client.from("triggered_beacons").insert({
-      token: payload.token,
-      ip: payload.ip,
-      user_agent: payload.user_agent,
-      received_at: payload.received_at,
+      token: evidence.token,
+      ip: evidence.ip,
+      user_agent: evidence.user_agent,
+      received_at: evidence.received_at,
+      chain_seq: evidence.chain_seq,
+      prev_hash: evidence.prev_hash,
+      record_hash: evidence.record_hash,
+      hmac: evidence.hmac,
     });
   } catch (err) {
     console.error("triggered_beacons insert failed:", err);
@@ -498,16 +536,17 @@ let cachedClient: SupabaseClient | null = null;
 // Null client — explicit local/test dry-run mode only.
 class NullSupabaseClient implements SupabaseClient {
   from(_table: string) {
-    const noop = async () => ({ data: null, error: null });
-    const chain = {
+    const chain: Record<string, any> = {
       insert: (_p: Record<string, unknown>) => Promise.resolve({ data: null, error: null }),
       select: () => chain,
       eq: () => chain,
       gt: () => chain,
+      order: () => chain,
+      limit: () => chain,
       then: (resolve: (value: unknown) => unknown, reject: (reason?: unknown) => unknown) =>
-        Promise.resolve({ data: null, count: 0, error: null }).then(resolve, reject),
+        Promise.resolve({ data: [], count: 0, error: null }).then(resolve, reject),
       catch: (reject: (reason?: unknown) => unknown) =>
-        Promise.resolve({ data: null, count: 0, error: null }).catch(reject),
+        Promise.resolve({ data: [], count: 0, error: null }).catch(reject),
     };
     return chain;
   }

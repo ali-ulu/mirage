@@ -38,6 +38,14 @@ import {
   type BeaconPayload,
   type SupabaseClient,
 } from "../functions/beacon-receiver/index.ts";
+import {
+  GENESIS_HASH,
+  verifyChain,
+} from "../functions/beacon-receiver/evidence.ts";
+
+// Testlerde deterministik kanıt imzalama anahtarı (production'da secret'tan gelir).
+const TEST_EVIDENCE_KEY = "test-evidence-key-beacon-receiver";
+Deno.env.set("MIRAGE_EVIDENCE_HMAC_KEY", TEST_EVIDENCE_KEY);
 
 // --- Mock Supabase Client ---------------------------------------------------
 //
@@ -91,6 +99,22 @@ class MockSupabaseClient implements SupabaseClient {
           return rowIp === ip && rowReceivedAt > since;
         }).length;
         return { data: null, count, error: null };
+      }
+      // Kanıt zinciri başı: bu token için en yüksek chain_seq'li kaydı döndür.
+      if (table === "triggered_beacons") {
+        const token = String(filters.token || "");
+        const rows = this.inserts
+          .filter((row) => row.table === "triggered_beacons" && String(row.payload.token) === token)
+          .map((row) => row.payload);
+        if (rows.length === 0) return { data: [], count: null, error: null };
+        const head = rows.reduce((a, b) =>
+          Number(b.chain_seq) > Number(a.chain_seq) ? b : a
+        );
+        return {
+          data: [{ chain_seq: head.chain_seq, record_hash: head.record_hash }],
+          count: null,
+          error: null,
+        };
       }
       return { data: null, count: null, error: null };
     };
@@ -488,9 +512,71 @@ Deno.test("handleRequest: triggered_beacons tablosuna doğru şema yazılır", a
   assertEquals(payload.ip, "203.0.113.42");
   assertEquals(payload.user_agent, "LibreOffice/7.5");
   assert(typeof payload.received_at === "string");
+  // Kanıt zinciri alanları yazılmış olmalı
+  assertEquals(payload.chain_seq, 1);
+  assertEquals(payload.prev_hash, GENESIS_HASH);
+  assert(typeof payload.record_hash === "string" && payload.record_hash.length === 64);
+  assert(typeof payload.hmac === "string" && payload.hmac.length === 64);
   // Yasaklı alanlar yazılmamış olmalı
   for (const key of FORBIDDEN_PAYLOAD_KEYS) {
     assert(!(key in payload), `Yasaklı alan ${key} veritabanına yazıldı!`);
+  }
+});
+
+Deno.test("handleRequest: ardışık olaylar kanıt zincirini bağlar", async () => {
+  const mockClient = new MockSupabaseClient();
+  const limiter = new RateLimiter({ windowMs: 1000, maxRequests: 100 });
+  const token = "550e8400-e29b-41d4-a716-446655440000";
+  for (let i = 0; i < 3; i++) {
+    const req = makeRequest("GET", `https://beacon.example/track/${token}`, null, {
+      "x-real-ip": "203.0.113.42",
+      "user-agent": "Excel/16.0",
+    });
+    const res = await handleRequest(req, mockClient, limiter);
+    assertEquals(res.status, 200);
+  }
+  const rows = mockClient.inserts
+    .filter((x) => x.table === "triggered_beacons")
+    .map((x) => x.payload);
+  assertEquals(rows.length, 3);
+  assertEquals(rows[0].chain_seq, 1);
+  assertEquals(rows[1].chain_seq, 2);
+  assertEquals(rows[2].chain_seq, 3);
+  assertEquals(rows[1].prev_hash, rows[0].record_hash);
+  assertEquals(rows[2].prev_hash, rows[1].record_hash);
+  // Yazılan kayıtlar bütünlük doğrulamasından geçmeli
+  const verification = await verifyChain(rows, TEST_EVIDENCE_KEY);
+  assertEquals(verification.ok, true);
+});
+
+Deno.test("handleRequest: kanıt anahtarı yoksa fail-closed (503), kayıt yazılmaz", async () => {
+  const oldKey = Deno.env.get("MIRAGE_EVIDENCE_HMAC_KEY");
+  const oldDry = Deno.env.get("MIRAGE_EDGE_DRY_RUN");
+  Deno.env.delete("MIRAGE_EVIDENCE_HMAC_KEY");
+  Deno.env.delete("MIRAGE_EDGE_DRY_RUN");
+  try {
+    const mockClient = new MockSupabaseClient();
+    const limiter = new RateLimiter({ windowMs: 1000, maxRequests: 100 });
+    const token = "550e8400-e29b-41d4-a716-446655440000";
+    const req = makeRequest("GET", `https://beacon.example/track/${token}`, null, {
+      "x-real-ip": "203.0.113.42",
+      "user-agent": "Excel/16.0",
+    });
+    const res = await handleRequest(req, mockClient, limiter);
+    assertEquals(res.status, 503);
+    assertEquals(
+      mockClient.inserts.filter((x) => x.table === "triggered_beacons").length,
+      0,
+    );
+    // Olay audit trail'e düşmeli
+    assertEquals(
+      mockClient.inserts.filter((x) => x.table === "sabotage_logs").length,
+      1,
+    );
+  } finally {
+    if (oldKey === undefined) Deno.env.delete("MIRAGE_EVIDENCE_HMAC_KEY");
+    else Deno.env.set("MIRAGE_EVIDENCE_HMAC_KEY", oldKey);
+    if (oldDry !== undefined) Deno.env.set("MIRAGE_EDGE_DRY_RUN", oldDry);
   }
 });
 
