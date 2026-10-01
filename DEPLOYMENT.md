@@ -372,6 +372,26 @@ Two integration surfaces:
   `resources/read` content) and, in enforce mode, returns a JSON-RPC `error`
   (code `-32000`) instead of executing the leaking `tools/call`.
 
+SIEM/SOAR export (optional). `POST /siem/export/{token}` turns a token's
+evidence chain and triage records into normalized SIEM events and delivers them
+to the configured sink. The evidence chain is verified first and the result is
+embedded as `chain_verified` in every event. Off by default:
+
+```txt
+# "hec" (Splunk) | "webhook" (Sentinel/SOAR) | "console" | "none"  (default: none)
+MIRAGE_SIEM_SINK=hec
+MIRAGE_SIEM_URL=https://splunk.example.com:8088
+MIRAGE_SIEM_TOKEN=<hec-token>
+MIRAGE_SIEM_INDEX=mirage
+# for webhook sinks, optional JSON of extra headers
+MIRAGE_SIEM_HEADERS={"Authorization":"Bearer <token>"}
+```
+
+`HecSink` posts newline-delimited envelopes to
+`<url>/services/collector/event` with `Authorization: Splunk <token>`;
+`WebhookSink` posts `{"events": [...]}` to the URL. Delivery failures return
+`502`, and an unconfigured sink returns `503`.
+
 The Next.js `/api/track/[token]` route is local-demo only and returns `410` in production. Use the Supabase Edge Function URL as the XLSX `base_url` for production-like tests.
 
 Before publishing, run:
