@@ -276,7 +276,12 @@ MIRAGE_ENV=production
 SUPABASE_URL=<project url>
 SUPABASE_SERVICE_ROLE_KEY=<rotated service role key>
 MIRAGE_API_TOKEN=<rotated API token>
+MIRAGE_EVIDENCE_HMAC_KEY=<rotated evidence signing key>
 ```
+
+`MIRAGE_EVIDENCE_HMAC_KEY` **zorunludur**: yoksa kanıt zinciri imzalanamaz ve
+receiver fail-closed (`503`) davranır. Anahtarı edge function runtime'ına da
+aynı değerle set edin (kanıt yazımı orada yapılır).
 
 `MIRAGE_EDGE_DRY_RUN=true` is local/test only. In production, missing Supabase configuration returns `503`; it must not silently enter dry-run.
 
