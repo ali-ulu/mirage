@@ -156,6 +156,21 @@ doğrulaması (TCKN, IBAN mod-97, kart Luhn) + Shannon entropisi (JWT/yüksek
 entropi sır; karakter çeşitliliği şart) + gazetteer/bağlam (ad-soyad, adres).
 Müşteri regex kuralları birleşik taranır; bozuk kural fail-safe atlanır.
 
+## API katmanı (modüler router'lar)
+
+Savunma modülleri artık **HTTP yüzeyine bağlı** (`scripts/mirage/api/`):
+- `api/deps.py`: store/motor singleton'ları + `require_api_token` (tek kaynak;
+  `server.py` bunları re-export eder). Router'lar buradan beslenir; döngüsel
+  import yok.
+- `api/routes/{mcp,rag,deception,behavior,evidence,dlp}.py`: her yüzey kendi
+  modülünde; `api/routes/__init__.py` içindeki `register_routers(app)` ile
+  app'e eklenir. **`server.py`'ye yeni uç eklemek yerine yeni bir router
+  dosyası aç.**
+- Uçlar: `/mcp/evaluate|audit`, `/rag/inspect`, `/deception/playbook|summary`,
+  `/behavior/analyze`, `/evidence/anchor|proof|verify-proof`, `/dlp/scan`.
+  Hepsi `require_api_token` ile korunur (üretimde fail-closed).
+- Test: `scripts/test_api_defense.py` (router kaydı + her uç + fail-safe).
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -195,6 +210,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_agent_middleware.py scripts/test_agent_guard.py \
   scripts/test_siem_export.py scripts/test_honeypot.py scripts/test_redteam.py \
   scripts/test_mcp_gateway.py scripts/test_rag_guard.py scripts/test_behavior.py \
+  scripts/test_api_defense.py \
   scripts/test_deception.py scripts/test_merkle_anchor.py scripts/test_dlp.py \
   scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
