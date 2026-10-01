@@ -36,6 +36,7 @@ jobs:
             scripts/test_server_auth.py \
             scripts/test_evidence_chain.py \
             scripts/test_evidence_api.py \
+            scripts/test_env_config.py \
             scripts/test_llm_providers.py \
             scripts/test_beacon_triage.py \
             scripts/mirage-edge/tests/test_migration.py \

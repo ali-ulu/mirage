@@ -9,6 +9,11 @@ Do not write real secrets into this file.
 - [ ] Rotate Supabase `SERVICE_ROLE_KEY`.
 - [ ] Rotate Supabase database password / `DATABASE_URL` password.
 - [ ] Rotate `MIRAGE_API_TOKEN`.
+- [ ] Rotate `MIRAGE_EVIDENCE_HMAC_KEY` (kanıt zinciri imzası) **and set the same
+      value in the edge function runtime**. Rotating the key invalidates
+      verification of evidence signed with the old key — rotate during a window
+      where re-verification is not required, or keep a verification key history.
+- [ ] Rotate `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` if the optional LLM layer is enabled.
 - [ ] Verify no old token is accepted by FastAPI `/profile`, `/synthesize`, or related sensitive routes.
 - [ ] Verify no old service role key works against Supabase.
 - [ ] Confirm `.env` is not tracked: `git ls-files .env` returns empty.
