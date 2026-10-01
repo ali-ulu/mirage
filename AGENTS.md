@@ -93,6 +93,15 @@ uygulamaya ulaşmadan tarar; ihlalde **422** döner (upstream'e iletilmez).
 `POST /agent/proxy` aynı kapıyı manuel sunar (gerçek giden çağrıyı MIRAGE
 yapmaz — SSRF yüzeyi yok; kararı uygulayan istemcidir).
 
+SIEM/SOAR dışa aktarım (`siem.py`, `POST /siem/export/{token}`): kanıt zinciri
+(`triggered_beacons`) + triyaj defteri (`beacon_triage`) kayıtlarını normalize
+SIEM olaylarına çevirir ve bir sink'e gönderir. `SiemSink` soyut arayüz;
+`HecSink` (Splunk HTTP Event Collector), `WebhookSink` (Sentinel/SOAR/özel),
+`ConsoleSink`. `build_events` saf/deterministik; `httpx` tembel bağımlılık.
+Kanıt zinciri önce doğrulanır, `chain_verified` olaylara işlenir. Env:
+`MIRAGE_SIEM_SINK=hec|webhook|console|none` + `MIRAGE_SIEM_URL` /
+`MIRAGE_SIEM_TOKEN` / `MIRAGE_SIEM_INDEX` / `MIRAGE_SIEM_HEADERS`.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -130,7 +139,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_llm_live.py scripts/test_agent_scan.py \
   scripts/test_agent_middleware.py scripts/test_agent_guard.py \
-  scripts/test_outbound_scan.py \
+  scripts/test_siem_export.py scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \

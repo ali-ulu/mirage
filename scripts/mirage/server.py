@@ -40,6 +40,7 @@ from .supabase_registry import (
 )
 from .triage_store import BeaconTriageStore
 from .evidence_store import EvidenceChainStore
+from .siem import SiemError, export_token, get_siem_sink
 from .team_store import TeamMembershipStore
 from .canary_store import SupabaseCanaryRegistry
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
@@ -877,3 +878,44 @@ def verify_evidence_chain(token: str, request: Request) -> dict:
         return store.verify(token)
     except SupabaseOperationError:
         raise HTTPException(status_code=502, detail="Failed to verify evidence chain")
+
+
+# ---------------------------------------------------------------------------
+# SIEM/SOAR export (kanıt + triyaj → Splunk HEC / webhook)
+# ---------------------------------------------------------------------------
+@app.post("/siem/export/{token}")
+async def export_to_siem(token: str, request: Request) -> dict:
+    """
+    Bir token'ın kanıt zincirini + triyaj kayıtlarını normalize SIEM olaylarına
+    çevirip yapılandırılmış sink'e gönderir (`MIRAGE_SIEM_SINK`).
+
+    Kanıt zinciri önce doğrulanır; `chain_verified` olaylara işlenir. Sink
+    yapılandırılmamışsa 503, gönderim başarısızsa 502 döner.
+    """
+    _require_api_token(request)
+    try:
+        sink = get_siem_sink()
+    except SiemError as e:
+        raise HTTPException(status_code=503, detail=f"SIEM sink misconfigured: {e}")
+    if sink is None:
+        raise HTTPException(
+            status_code=503,
+            detail="SIEM export not configured (set MIRAGE_SIEM_SINK)",
+        )
+    try:
+        evidence_store = get_evidence_store()
+    except SupabaseNotConfiguredError:
+        evidence_store = None
+    try:
+        triage_store = get_triage_store()
+    except SupabaseNotConfiguredError:
+        triage_store = None
+    try:
+        return await export_token(
+            token=token,
+            evidence_store=evidence_store,
+            triage_store=triage_store,
+            sink=sink,
+        )
+    except SiemError as e:
+        raise HTTPException(status_code=502, detail=f"SIEM delivery failed: {e}")
