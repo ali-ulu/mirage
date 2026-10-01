@@ -37,6 +37,11 @@ honeytoken'ın kanıt zincirine bağlanır (`canary_evidence.py`): zincir başı
 `chain_seq`'i ve doğrulama sonucu (`chain_verified`) triyaja taşınır. Kanıt
 zincirinin kendisine yazılmaz (edge function'a ait, kripto bütünlüğü var).
 
+Multi-tenant (`team_id`): `honeytokens` (0002), `prompt_canaries` ve
+`beacon_triage` (0007) nullable `team_id uuid` taşır; canary/triyaj store'ları
+ve `/agent/canary`, `/agent/canary/check`, `/agent/scan`, `/honeytoken` uçları
+`team_id` kabul eder. `all_records`/`list_for_token` team_id ile filtreler.
+
 Runtime tarama (`agent/runtime.py`, `POST /agent/scan`): ajan çıktısı / log /
 araç çağrısı metnini canary ve müşteri tanımlı regex kurallara göre tarar.
 Canary sızıntısı `/agent/canary/check` ile aynı kod yolundan (`scan_text_for_leaks`)
@@ -79,11 +84,12 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_prompt_canary.py scripts/test_canary_store.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_agent_scan.py \
-  scripts/test_beacon_triage.py \
+  scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py \
   scripts/mirage-edge/tests/test_canary_migration.py \
-  scripts/mirage-edge/tests/test_triage_rls_migration.py
+  scripts/mirage-edge/tests/test_triage_rls_migration.py \
+  scripts/mirage-edge/tests/test_team_id_migration.py
 
 # Deno (edge)
 deno test --no-check --allow-net --allow-env --allow-read \

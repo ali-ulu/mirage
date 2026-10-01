@@ -38,6 +38,7 @@ async def scan_text_for_leaks(
     token: Optional[str] = None,
     persist: bool = False,
     chain_verified: Optional[bool] = None,
+    team_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Metinde kayıtlı canary işaretlerini arar; bulunursa triyajlar ve istenirse
@@ -79,7 +80,9 @@ async def scan_text_for_leaks(
             raise SupabaseNotConfiguredError(
                 "Triage ledger not configured (SUPABASE_URL/SERVICE_ROLE_KEY missing)"
             )
-        triage_store.save(token, result, chain_seq=binding["chain_seq"], model=model)
+        triage_store.save(
+            token, result, chain_seq=binding["chain_seq"], model=model, team_id=team_id
+        )
         persisted = True
 
     payload["triage"] = result.to_dict()

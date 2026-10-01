@@ -197,6 +197,7 @@ class HoneytokenRequest(BaseModel):
     base_url: str = Field(..., description="Tracking URL base (e.g. https://beacon.example/track)")
     label: str = Field("", description="Optional label for the honeytoken (e.g. 'Q4-finance-export')")
     sheet_name: str = Field("Sheet", description="Sheet name in the XLSX")
+    team_id: Optional[str] = Field(None, description="Multi-tenant owner (team UUID)")
 
 
 class HoneytokenLookupRequest(BaseModel):
@@ -231,6 +232,7 @@ class CanaryIssueRequest(BaseModel):
     )
     label: str = Field("", description="Optional label (e.g. 'support-rag-v2')")
     style: str = Field("raw", pattern="^(raw|note)$", description="Rendering style")
+    team_id: Optional[str] = Field(None, description="Multi-tenant owner (team UUID)")
 
 
 class CanaryCheckRequest(BaseModel):
@@ -238,6 +240,7 @@ class CanaryCheckRequest(BaseModel):
     token: Optional[str] = Field(None, description="Honeytoken UUID to attach the leak to (for triage ledger)")
     persist: bool = Field(False, description="Persist a triage record when a leak is found")
     chain_verified: Optional[bool] = Field(None, description="Evidence chain verification result, if known")
+    team_id: Optional[str] = Field(None, description="Multi-tenant owner recorded on the triage record")
 
 
 class ScanRule(BaseModel):
@@ -254,6 +257,7 @@ class ScanRequest(BaseModel):
     token: Optional[str] = Field(None, description="Honeytoken UUID to attach the leak to (for triage ledger)")
     persist: bool = Field(False, description="Persist a triage record when a canary leak is found")
     chain_verified: Optional[bool] = Field(None, description="Evidence chain verification result, if known")
+    team_id: Optional[str] = Field(None, description="Multi-tenant owner recorded on the triage record")
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +399,7 @@ def issue_prompt_canary(req: CanaryIssueRequest, request: Request) -> dict:
     _require_api_token(request)
     registry = get_canary_registry()
     try:
-        canary = registry.issue(req.context, label=req.label)
+        canary = registry.issue(req.context, label=req.label, team_id=req.team_id)
     except SupabaseOperationError as e:
         raise HTTPException(status_code=503, detail=f"Canary registry unavailable: {e}")
     payload = canary.to_dict()
@@ -444,6 +448,7 @@ async def check_prompt_canary(req: CanaryCheckRequest, request: Request) -> dict
             token=req.token,
             persist=req.persist,
             chain_verified=req.chain_verified,
+            team_id=req.team_id,
         )
     except SupabaseOperationError:
         raise HTTPException(status_code=502, detail="Failed to persist triage record")
@@ -491,6 +496,7 @@ async def scan_agent_output(req: ScanRequest, request: Request) -> dict:
             token=req.token,
             persist=req.persist,
             chain_verified=req.chain_verified,
+            team_id=req.team_id,
         )
     except SupabaseOperationError:
         raise HTTPException(status_code=502, detail="Failed to persist triage record")
@@ -534,7 +540,9 @@ def create_honeytoken(req: HoneytokenRequest, request: Request):
     # Issue token via Supabase-backed registry (persistent)
     try:
         registry = get_registry()
-        record = registry.issue(df, base_url=req.base_url, label=req.label)
+        record = registry.issue(
+            df, base_url=req.base_url, label=req.label, team_id=req.team_id
+        )
     except SupabaseNotConfiguredError:
         # Fail fast with actionable error — do NOT swallow config errors
         raise HTTPException(

@@ -45,11 +45,13 @@ jobs:
             scripts/test_canary_evidence.py \
             scripts/test_llm_smoke.py \
             scripts/test_agent_scan.py \
+            scripts/test_team_id.py \
             scripts/test_beacon_triage.py \
             scripts/mirage-edge/tests/test_migration.py \
             scripts/mirage-edge/tests/test_triage_migration.py \
             scripts/mirage-edge/tests/test_canary_migration.py \
-            scripts/mirage-edge/tests/test_triage_rls_migration.py
+            scripts/mirage-edge/tests/test_triage_rls_migration.py \
+            scripts/mirage-edge/tests/test_team_id_migration.py
 
   frontend:
     name: Frontend (vitest)

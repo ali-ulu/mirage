@@ -42,7 +42,9 @@ class SupabaseCanaryRegistry:
         else:
             self._client = build_supabase_client_from_env()
 
-    def issue(self, context: str, label: str = "") -> PromptCanary:
+    def issue(
+        self, context: str, label: str = "", team_id: Optional[str] = None
+    ) -> PromptCanary:
         """Yeni canary üret, DB'ye yaz, kaydı döndür."""
         if context not in VALID_CONTEXTS:
             raise ValueError(
@@ -50,7 +52,13 @@ class SupabaseCanaryRegistry:
             )
         token = str(uuidlib.uuid4())
         marker = build_marker(token)
-        payload = {"token": token, "marker": marker, "context": context, "label": label}
+        payload = {
+            "token": token,
+            "marker": marker,
+            "context": context,
+            "label": label,
+            "team_id": team_id,
+        }
 
         def _do_insert():
             return self._client.table(self.TABLE_NAME).insert(payload).execute()
@@ -63,6 +71,7 @@ class SupabaseCanaryRegistry:
             context=context,
             label=label,
             created_at="",
+            team_id=team_id,
         )
 
     def lookup(self, token: str) -> Optional[PromptCanary]:
@@ -113,16 +122,15 @@ class SupabaseCanaryRegistry:
         by_token = {row["token"]: self._row_to_canary(row) for row in result.data}
         return [by_token[t] for t in tokens if t in by_token]
 
-    def all_records(self, limit: int = 200) -> list[PromptCanary]:
-        """En yeni canary'ler önce olacak şekilde listeler."""
+    def all_records(
+        self, limit: int = 200, team_id: Optional[str] = None
+    ) -> list[PromptCanary]:
+        """En yeni canary'ler önce olacak şekilde listeler; team_id verilirse filtreler."""
         def _do_list():
-            return (
-                self._client.table(self.TABLE_NAME)
-                .select("*")
-                .order("created_at", desc=True)
-                .limit(limit)
-                .execute()
-            )
+            query = self._client.table(self.TABLE_NAME).select("*")
+            if team_id is not None:
+                query = query.eq("team_id", team_id)
+            return query.order("created_at", desc=True).limit(limit).execute()
 
         try:
             result = _safe_supabase_call("list_prompt_canaries", _do_list)
@@ -134,10 +142,12 @@ class SupabaseCanaryRegistry:
 
     @staticmethod
     def _row_to_canary(row: dict) -> PromptCanary:
+        team_id = row.get("team_id")
         return PromptCanary(
             token=str(row.get("token", "")),
             marker=str(row.get("marker", "")),
             context=str(row.get("context", "")),
             label=str(row.get("label", "")),
             created_at=(str(row["created_at"]) if row.get("created_at") is not None else ""),
+            team_id=(str(team_id) if team_id is not None else None),
         )
