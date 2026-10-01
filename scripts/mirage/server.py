@@ -39,6 +39,7 @@ from .supabase_registry import (
     SupabaseOperationError,
 )
 from .triage_store import BeaconTriageStore
+from .evidence_store import EvidenceChainStore
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
 from .env import fail_fast_on_missing_env, is_production
 
@@ -87,6 +88,27 @@ def reset_triage_store_for_testing(client=None) -> None:
         _TRIAGE_STORE = BeaconTriageStore(client=client)
     else:
         _TRIAGE_STORE = None
+
+
+# Kanıt zinciri okuma/doğrulama deposu.
+_EVIDENCE_STORE: Optional[EvidenceChainStore] = None
+
+
+def get_evidence_store() -> EvidenceChainStore:
+    """Lazy singleton — Supabase env yoksa SupabaseNotConfiguredError."""
+    global _EVIDENCE_STORE
+    if _EVIDENCE_STORE is None:
+        _EVIDENCE_STORE = EvidenceChainStore()
+    return _EVIDENCE_STORE
+
+
+def reset_evidence_store_for_testing(client=None) -> None:
+    """Test hook — inject a mock client or reset to None."""
+    global _EVIDENCE_STORE
+    if client is not None:
+        _EVIDENCE_STORE = EvidenceChainStore(client=client)
+    else:
+        _EVIDENCE_STORE = None
 
 
 app = FastAPI(
@@ -396,3 +418,39 @@ def list_beacon_triage(token: str, request: Request) -> dict:
         "count": len(records),
         "records": [r.to_dict() for r in records],
     }
+
+
+# ---------------------------------------------------------------------------
+# Evidence chain read + verify routes (P0 follow-up — kanıt doğrulama API'si)
+# ---------------------------------------------------------------------------
+@app.get("/beacon/evidence/{token}")
+def list_evidence_chain(token: str, request: Request) -> dict:
+    """Bir token'a ait kanıt kayıtlarını (chain_seq sırasıyla) döndürür."""
+    _require_api_token(request)
+    try:
+        store = get_evidence_store()
+    except SupabaseNotConfiguredError:
+        raise HTTPException(status_code=503, detail="Evidence store not configured")
+    try:
+        records = store.list_chain(token)
+    except SupabaseOperationError:
+        raise HTTPException(status_code=502, detail="Failed to read evidence chain")
+    return {"count": len(records), "records": records}
+
+
+@app.get("/beacon/evidence/{token}/verify")
+def verify_evidence_chain(token: str, request: Request) -> dict:
+    """
+    Bir token'ın kanıt zincirini bağımsız olarak doğrular (hash zinciri + HMAC).
+
+    Anahtar yoksa fail-closed: `ok=False, reason='signing key unavailable'`.
+    """
+    _require_api_token(request)
+    try:
+        store = get_evidence_store()
+    except SupabaseNotConfiguredError:
+        raise HTTPException(status_code=503, detail="Evidence store not configured")
+    try:
+        return store.verify(token)
+    except SupabaseOperationError:
+        raise HTTPException(status_code=502, detail="Failed to verify evidence chain")

@@ -47,6 +47,21 @@ function toHex(buffer: ArrayBuffer): string {
 }
 
 /**
+ * Timestamp'i kanonik UTC ISO-8601 biçimine getirir: milisaniye + `Z`
+ * (ör. "2026-10-01T12:00:00.000Z"). Python `normalize_timestamp` ile birebir.
+ *
+ * Gerekçe: `received_at` Postgres `timestamptz` gidiş-dönüşünde biçim değiştirir
+ * (`...000Z` -> `...+00:00`); normalize etmezsek DB'den okunan kayıt hash'i
+ * tutmaz ve doğrulama yanlış "kurcalanmış" der.
+ */
+export function normalizeTimestamp(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const iso = d.toISOString(); // her zaman ...SSS Z, UTC
+  return iso.slice(0, 23) + "Z";
+}
+
+/**
  * Kanonik JSON: yalnızca kanonik alanlar, anahtarlar sıralı, boşluksuz.
  * Python `json.dumps(..., sort_keys=True, separators=(",",":"), ensure_ascii=False)`
  * ile aynı çıktıyı üretmelidir.
@@ -56,6 +71,10 @@ export function canonicalJson(record: Record<string, unknown>): string {
   const ordered: Record<string, unknown> = {};
   for (const k of sortedKeys) {
     ordered[k] = (record as Record<string, unknown>)[k];
+  }
+  // received_at kanonik UTC biçimine normalize edilir (DB gidiş-dönüşü paritesi).
+  if (ordered.received_at != null) {
+    ordered.received_at = normalizeTimestamp(String(ordered.received_at));
   }
   return JSON.stringify(ordered);
 }

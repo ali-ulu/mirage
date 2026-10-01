@@ -15,6 +15,7 @@ import {
   computeHmac,
   GENESIS_HASH,
   getChainHead,
+  normalizeTimestamp,
   recordHash,
   verifyChain,
   verifyHmac,
@@ -103,6 +104,17 @@ Deno.test("parite: buildEvidenceRecord altın fixture ile eşleşir", async () =
   const rec = await buildEvidenceRecord(GOLDEN_1, KEY);
   assertEquals(rec.record_hash, GOLDEN_1_HASH);
   assertEquals(rec.hmac, GOLDEN_1_HMAC);
+});
+
+Deno.test("parite: normalizeTimestamp kanonik UTC üretir", () => {
+  assertEquals(normalizeTimestamp("2026-10-01T12:00:00.000Z"), "2026-10-01T12:00:00.000Z");
+  assertEquals(normalizeTimestamp("2026-10-01T12:00:00+00:00"), "2026-10-01T12:00:00.000Z");
+  assertEquals(normalizeTimestamp("2026-10-01T15:00:00+03:00"), "2026-10-01T12:00:00.000Z");
+});
+
+Deno.test("parite: DB timestamptz biçimi hash'i bozmaz", async () => {
+  const dbForm = { ...GOLDEN_1, received_at: "2026-10-01T12:00:00+00:00" };
+  assertEquals(await recordHash(dbForm as unknown as Record<string, unknown>), GOLDEN_1_HASH);
 });
 
 // ---------------------------------------------------------------------------
