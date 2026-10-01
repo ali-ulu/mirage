@@ -115,7 +115,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_llm_providers.py scripts/test_planner_agent.py \
   scripts/test_prompt_canary.py scripts/test_canary_store.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
-  scripts/test_llm_smoke.py scripts/test_agent_scan.py \
+  scripts/test_llm_smoke.py scripts/test_llm_live.py scripts/test_agent_scan.py \
   scripts/test_agent_middleware.py scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
