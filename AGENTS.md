@@ -110,6 +110,14 @@ mesajı `respond` ile taranır; canary sızdırırsa `leaked=True` (yakalama) ve
 veri üretmeyi yasaklar (yalnızca synthetic). `agent/planner.py` ile aynı
 sözleşme: LLM opsiyonel, hata çekirdeği bozmaz.
 
+Prompt red-team tarayıcısı (`redteam.py`): depodaki prompt artefaktlarını
+injection/jailbreak/sızdırma/gizli-Unicode/canary için tarar. CI'da
+`python -m mirage . ../AGENTS.md ... --fail-on=critical` kapısı olarak
+çalışır (ayrıca `python -m mirage.redteam <path>`). Varsayılan olarak yalnızca
+prompt artefaktlarını (md/txt/json/yaml/…)
+tarar; **kod dosyaları kural metinlerini meşru içerdiği için** dışlanır
+(`--include=.py` ile eklenir). `--fail-on`, `--exclude=GLOB` destekler.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -147,7 +155,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
   scripts/test_llm_smoke.py scripts/test_llm_live.py scripts/test_agent_scan.py \
   scripts/test_agent_middleware.py scripts/test_agent_guard.py \
-  scripts/test_siem_export.py scripts/test_honeypot.py \
+  scripts/test_siem_export.py scripts/test_honeypot.py scripts/test_redteam.py \
   scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
