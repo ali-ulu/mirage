@@ -22,8 +22,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from .agent.prompt_canary import detect_canaries
-
-_SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+from .severity import SEVERITY_ORDER as _SEVERITY_ORDER
 
 # Gizli/kontrol Unicode karakterleri: bidi override + zero-width.
 _HIDDEN_UNICODE = {

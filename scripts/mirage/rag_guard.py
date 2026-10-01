@@ -22,7 +22,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Optional
 
-from .redteam import Rule, max_severity, scan_text, _HIDDEN_UNICODE, _SEVERITY_ORDER
+from .redteam import Rule, max_severity, scan_text, _HIDDEN_UNICODE
+from .severity import SEVERITY_ORDER as _SEVERITY_ORDER
 
 _ACTIONS = ("allow", "quarantine", "reject")
 

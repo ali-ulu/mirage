@@ -27,7 +27,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
-_SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+from .severity import SEVERITY_ORDER as _SEVERITY_ORDER
 
 # --- Yapısal desenler (regex katmanı) -------------------------------------
 _RE_TCKN = re.compile(r"(?<!\d)(\d{11})(?!\d)")

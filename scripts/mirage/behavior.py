@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
-_SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+from .severity import SEVERITY_ORDER as _SEVERITY_ORDER, level_for_score
 
 
 @dataclass(frozen=True)
@@ -47,14 +47,6 @@ class BehaviorProfile:
         }
 
 
-def _intent_level(score: int) -> str:
-    if score >= 80:
-        return "critical"
-    if score >= 55:
-        return "high"
-    if score >= 30:
-        return "medium"
-    return "low"
 
 
 def _action_for(level: str) -> str:
@@ -148,7 +140,7 @@ def analyze(
                                       f"{escalations} kez eskalasyon"))
 
     score = min(score, 100)
-    level = _intent_level(score)
+    level = level_for_score(score)
 
     # Sofistike davranış: kurcalama veya çok yüzeyli + dağıtık kombinasyonu.
     if tampered or (len(contexts) >= 2 and actors >= 3):
