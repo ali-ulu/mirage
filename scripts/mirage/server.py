@@ -40,6 +40,7 @@ from .supabase_registry import (
 )
 from .triage_store import BeaconTriageStore
 from .evidence_store import EvidenceChainStore
+from .team_store import TeamMembershipStore
 from .canary_store import SupabaseCanaryRegistry
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
 from .agent import (
@@ -146,6 +147,27 @@ def reset_evidence_store_for_testing(client=None) -> None:
         _EVIDENCE_STORE = EvidenceChainStore(client=client)
     else:
         _EVIDENCE_STORE = None
+
+
+# Takım üyeliği yönetimi (service_role; 0008 RLS'in temeli).
+_TEAM_STORE: Optional[TeamMembershipStore] = None
+
+
+def get_team_store() -> TeamMembershipStore:
+    """Lazy singleton — Supabase env yoksa SupabaseNotConfiguredError."""
+    global _TEAM_STORE
+    if _TEAM_STORE is None:
+        _TEAM_STORE = TeamMembershipStore()
+    return _TEAM_STORE
+
+
+def reset_team_store_for_testing(client=None) -> None:
+    """Test hook — inject a mock client or reset to None."""
+    global _TEAM_STORE
+    if client is not None:
+        _TEAM_STORE = TeamMembershipStore(client=client)
+    else:
+        _TEAM_STORE = None
 
 
 app = FastAPI(
@@ -261,6 +283,12 @@ class ScanRequest(BaseModel):
     persist: bool = Field(False, description="Persist a triage record when a canary leak is found")
     chain_verified: Optional[bool] = Field(None, description="Evidence chain verification result, if known")
     team_id: Optional[str] = Field(None, description="Multi-tenant owner recorded on the triage record")
+
+
+class TeamMemberRequest(BaseModel):
+    user_id: str = Field(..., description="User UUID (JWT `sub` claim)")
+    team_id: str = Field(..., description="Team UUID")
+    role: str = Field("member", pattern="^(owner|admin|member)$", description="Membership role")
 
 
 # ---------------------------------------------------------------------------
@@ -510,6 +538,81 @@ async def scan_agent_output(req: ScanRequest, request: Request) -> dict:
     leak["source"] = req.source
     leak["clean"] = not leak["leaked"] and not findings
     return leak
+
+
+# ---------------------------------------------------------------------------
+# Team membership routes (multi-tenant yönetim — service_role)
+# ---------------------------------------------------------------------------
+@app.post("/team/members", status_code=201)
+def add_team_member(req: TeamMemberRequest, request: Request) -> dict:
+    """
+    Bir kullanıcıyı takıma ekler (rol ile). Aynı çift varsa rol güncellenir.
+    Bu uç service_role ile çalışır; 0008 RLS `authenticated` istemcilerin
+    yalnızca üye oldukları takımları görmesini sağlar.
+    """
+    _require_api_token(request)
+    try:
+        store = get_team_store()
+    except SupabaseNotConfiguredError:
+        raise HTTPException(status_code=503, detail="Team store not configured (Supabase missing)")
+    try:
+        member = store.add(user_id=req.user_id, team_id=req.team_id, role=req.role)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except SupabaseOperationError:
+        raise HTTPException(status_code=502, detail="Failed to write team membership")
+    return member.to_dict()
+
+
+@app.get("/team/{team_id}/members")
+def list_team_members(team_id: str, request: Request) -> dict:
+    """Bir takımın üyelerini listeler."""
+    _require_api_token(request)
+    try:
+        store = get_team_store()
+    except SupabaseNotConfiguredError:
+        raise HTTPException(status_code=503, detail="Team store not configured (Supabase missing)")
+    try:
+        members = store.list_for_team(team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"team_id": team_id, "count": len(members), "members": [m.to_dict() for m in members]}
+
+
+@app.get("/team/{team_id}/members/{user_id}")
+def get_team_member(team_id: str, user_id: str, request: Request) -> dict:
+    """Bir kullanıcının takımdaki rolünü döndürür."""
+    _require_api_token(request)
+    try:
+        store = get_team_store()
+    except SupabaseNotConfiguredError:
+        raise HTTPException(status_code=503, detail="Team store not configured (Supabase missing)")
+    try:
+        role = store.get_role(user_id=user_id, team_id=team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    if role is None:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    return {"user_id": user_id, "team_id": team_id, "role": role}
+
+
+@app.delete("/team/{team_id}/members/{user_id}")
+def remove_team_member(team_id: str, user_id: str, request: Request) -> dict:
+    """Bir üyeliği kaldırır."""
+    _require_api_token(request)
+    try:
+        store = get_team_store()
+    except SupabaseNotConfiguredError:
+        raise HTTPException(status_code=503, detail="Team store not configured (Supabase missing)")
+    try:
+        removed = store.remove(user_id=user_id, team_id=team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except SupabaseOperationError:
+        raise HTTPException(status_code=502, detail="Failed to remove team membership")
+    if removed == 0:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    return {"removed": removed}
 
 
 # ---------------------------------------------------------------------------

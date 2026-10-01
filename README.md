@@ -47,6 +47,12 @@ The Next.js `/api/track` route is **local demo only** (in-memory, not persistent
 | `/honeytoken` | POST | Generate passive XLSX honeytoken | `MIRAGE_API_TOKEN` when configured |
 | `/honeytoken/lookup` | POST | Lookup one token | `MIRAGE_API_TOKEN` when configured |
 | `/honeytokens` | GET | List active tokens | `MIRAGE_API_TOKEN` when configured |
+| `/agent/canary` | POST | Issue a prompt-layer canary | `MIRAGE_API_TOKEN` when configured |
+| `/agent/canary/check` | POST | Scan text for canary leaks (+ triage) | `MIRAGE_API_TOKEN` when configured |
+| `/agent/scan` | POST | Runtime scan: canary + customer regex rules | `MIRAGE_API_TOKEN` when configured |
+| `/team/members` | POST | Add/update a team membership (service_role) | `MIRAGE_API_TOKEN` when configured |
+| `/team/{team_id}/members` | GET | List a team's members | `MIRAGE_API_TOKEN` when configured |
+| `/team/{team_id}/members/{user_id}` | GET/DELETE | Get role / remove membership | `MIRAGE_API_TOKEN` when configured |
 
 ### Next.js dashboard API
 
