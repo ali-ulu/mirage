@@ -135,7 +135,9 @@ def main():
 
     # 3. Edge function'ı başlat
     print("\n[3] Starting Edge Function (Deno)...")
-    proc = start_edge_function_server({})
+    # Edge function, Supabase secrets yokluğunda yalnızca açık dry-run ile
+    # ayağa kalkar (PRODUCTION_BOUNDARY). Bu test yerel dry-run senaryosudur.
+    proc = start_edge_function_server({"MIRAGE_EDGE_DRY_RUN": "true"})
 
     try:
         # 4. "Saldırgan" tracking URL'e GET atar (XLSX açıldığını simüle et)
@@ -143,7 +145,7 @@ def main():
         # Header'lar bir ofis uygulamasını simüle et
         headers = {
             "User-Agent": "LibreOffice/7.5 (simulated by integration test)",
-            "X-Forwarded-For": "203.0.113.42",  # public IP (test amaçlı)
+            "X-Real-IP": "203.0.113.42",  # public IP (test amaçlı)
         }
         url = record.full_url  # http://127.0.0.1:8000/track/<token>
         print(f"    GET {url}")
@@ -162,7 +164,7 @@ def main():
                 f"{base_url}/{record.token}",
                 headers={
                     "User-Agent": "Excel/16.0",
-                    "X-Forwarded-For": "203.0.113.42",
+                    "X-Real-IP": "203.0.113.42",
                 },
                 timeout=10,
             )
@@ -175,7 +177,7 @@ def main():
             f"{base_url}/{record.token}",
             headers={
                 "User-Agent": "Microsoft Office Excel/16.0",
-                "X-Forwarded-For": "198.51.100.7",
+                "X-Real-IP": "198.51.100.7",
             },
             timeout=10,
         )
@@ -186,7 +188,7 @@ def main():
         print("\n[7] Sending request with invalid token (expect 400)...")
         r3 = requests.get(
             f"http://127.0.0.1:8000/track/not-a-uuid",
-            headers={"X-Forwarded-For": "203.0.113.99"},
+            headers={"X-Real-IP": "203.0.113.99"},
             timeout=10,
         )
         print(f"    Response: {r3.status_code}")
@@ -201,7 +203,7 @@ def main():
                 "ip": "203.0.113.42",
                 "mac_address": "AA:BB:CC:DD:EE:FF",  # YASAKLI
             },
-            headers={"X-Forwarded-For": "203.0.113.42"},
+            headers={"X-Real-IP": "203.0.113.42"},
             timeout=10,
         )
         print(f"    Response: {r4.status_code}")
