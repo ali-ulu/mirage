@@ -24,6 +24,12 @@ yola düşer; çekirdeği bozmaz.
 değiştirir, keep kolonları aynen korur; satır sayısı/kolon sırası değişmez.
 `POST /agent/plan` (plan) ve `POST /agent/anonymize` (plan+uygula) uçları vardır.
 
+**Prompt-layer canary** (`agent/prompt_canary.py`): AI ajanı bağlamına
+(system prompt / RAG dokümanı / agent memory) yüksek-entropili bir işaret
+(`[[MIRAGE-CANARY:<uuid>]]`) gömer. İşaret başka bir yerde görünürse bağlam
+sızmış demektir. `POST /agent/canary` üretir, `POST /agent/canary/check` arar.
+Registry şu an süreç-içi (kalıcılık ayrı dilim).
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -57,7 +63,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_server_auth.py scripts/test_evidence_chain.py \
   scripts/test_evidence_api.py scripts/test_env_config.py \
   scripts/test_llm_providers.py scripts/test_planner_agent.py \
-  scripts/test_beacon_triage.py \
+  scripts/test_prompt_canary.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py
 
