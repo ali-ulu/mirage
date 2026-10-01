@@ -316,7 +316,16 @@ export async function handleRequest(
   }
 
   // 2. Method kontrolü
+  // Reddedilen metodlar da audit trail'e yazılır (defense in depth: bir
+  // saldırganın yasak metodla yoklaması MIRAGE için bir sinyaldir).
   if (req.method !== "GET" && req.method !== "POST") {
+    await logSabotageEvent(client, {
+      eventType: "method_not_allowed",
+      ip: extractClientInfo(req).ip || null,
+      details: {
+        method: req.method,
+      },
+    });
     return jsonResponse(405, { error: "method not allowed" }, {
       "allow": "GET, POST, OPTIONS",
     });
