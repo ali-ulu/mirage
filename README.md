@@ -1,233 +1,161 @@
-# MIRAGE — Deception-Based Leak Detection & AI-Agent Security
+# MIRAGE — AI / AI-Agent Sızıntı Tespiti ve Kanıt Zinciri
 
-MIRAGE turns a sensitive-data leak into **signed, timestamped, admissible evidence**.
-It started as a passive honeytoken engine and pivoted to cover the full AI-agent
-surface: data (honeytoken XLSX), prompt layer (canary), agent I/O (runtime scan +
-inline guard), and tool/RAG/model boundaries (MCP gateway, RAG guard, DLP).
-
-Two engines, one evidence chain:
-
-- **Python engine** (`scripts/mirage/`) — statistically isomorphic synthetic data,
-  passive honeytoken packaging, and the defense modules below.
-- **Edge receiver** (`scripts/mirage-edge/`) — canonical beacon ingestion + the
-  append-only evidence chain authority.
-
-A Next.js dashboard (`src/`) reads beacons and evidence through a server-side
-Supabase proxy.
+MIRAGE, hassas verilerin sızıp sızmadığını tespit eden ve adli kanıt niteliğinde imzalı, zaman damgalı bir **kanıt zinciri** oluşturan bir güvenlik motorudur.
 
 ---
 
-## What works
+## Ne İşe Yarar?
 
-- Statistically isomorphic synthetic CSV/JSON (Gaussian copula + empirical CDF).
-- Passive XLSX honeytokens: no macro, VBA, DDE, PowerShell, shell, DNS-tunneling,
-  or client-side code execution.
-- **Canonical beacon receiver:** Supabase Edge Function
-  (`scripts/mirage-edge/functions/beacon-receiver`).
-- Append-only evidence chain (hash + HMAC + `chain_seq` uniqueness + append-only
-  trigger) with an independent Python verifier.
-- Optional hybrid LLM layer (OpenAI + Anthropic) with deterministic heuristic
-  fallback everywhere — the core never depends on a model.
-- Defense modules wired to HTTP: MCP gateway, RAG guard, behavior analytics,
-  deception orchestration, Merkle anchor, beyond-regex DLP.
-- CI red-team gate that fails the build on prompt-injection / jailbreak findings.
-- Docker/Caddy production deployment skeleton.
-
----
-
-## 🎯 Beacon Receiver: Canonical Path
-
-**For production and judicial/compliance use, the canonical beacon receiver is:**
-```
-scripts/mirage-edge/functions/beacon-receiver
-```
-
-The Next.js `/api/track` route is **local demo only** (in-memory, not persistent).
-In production it returns `410 Gone` with a pointer to the canonical path.
-
-**For admissible evidence and audit use, always use the Supabase Edge Function.**
-See `BEACON_RECEIVER_BOUNDARY.md` for the full demo vs production boundary.
+- **Pasif XLSX honeytoken**: Veri dosyasına (Excel/CSV/JSON) gömülü, makro/kod çalıştırma içermeyen bir izleme URL'si koyar. Dosya açıldığında bir HTTP GET (beacon) tetiklenir — saldırganın kimliği, IP'si, zaman kaydedilir.
+- **Prompt-layer canary**: AI ajanının sistem prompt'una / RAG dokümanına / memory'sine yüksek entropili bir işaret (`[[MIRAGE-CANARY:<uuid>]]`) gömer. İşaret başka yerde görünürse bağlam sızmış demektir.
+- **Runtime tarama**: Ajan çıktılarını, logları, araç çağrılarını canary + müşteri regex kurallarına göre tarar; sızıntı anında yakalar.
+- **Inline guard (AgentGuard)**: Ajan bir API çağrısı yapmadan / MCP tool çağrısı göndermeden önce gövdeyi tarar; ihlal varsa **çağrıyı bloke eder** (fail-closed).
+- **MCP Gateway**: Tool çağrısı yapılmadan önce politika (allow/deny), sunucu risk skoru ve denetim günlüğü üretir.
+- **RAG Guard**: Getirilen dokümanı bağlama almadan önce tarar → `allow / quarantine / reject`.
+- **Deception (Honeypot)**: LLM ile sentetik persona üretir, içine canary gömer; saldırgan canary'ı sızdırırsa yakalar.
+- **Kanıt zinciri (append-only)**: Her beacon `triggered_beacons` tablosuna hash + HMAC + `chain_seq` ile yazılır; UPDATE/DELETE trigger ile engellenir. Bağımsız Python doğrulayıcısı ile kanıtlanabilir.
+- **Merkle anchor + zaman damgası**: Zincirin Merkle kökü RFC 3161 / OTS ile zaman damgalanır; tek kayıt için inclusion proof üretilir.
+- **Regex ötesi DLP**: Checksum (TCKN, IBAN, kart Luhn) + Shannon entropi (JWT/gizli) + gazetteer (ad-soyad, adres).
+- **SIEM/SOAR export**: Kanıt + triyaj kayıtları normalize SIEM olaylarına çevrilip Splunk HEC / webhook / console'a gönderilir.
+- **Next.js Dashboard**: Beacon akışı, saldırgan tablosu, KPI'lar — Supabase Realtime ile anlık güncellenir.
 
 ---
 
-## Core routes
+## Kimin İçin?
 
-### FastAPI engine
-
-| Route | Method | Purpose | Auth |
-|---|---:|---|---|
-| `/health` | GET | Health check | Public |
-| `/profile` | POST | Profile an input dataset | `MIRAGE_API_TOKEN` when configured |
-| `/synthesize` | POST | Generate synthetic CSV/JSON | `MIRAGE_API_TOKEN` when configured |
-| `/honeytoken` | POST | Generate passive XLSX honeytoken | `MIRAGE_API_TOKEN` when configured |
-| `/honeytoken/lookup` | POST | Look up one token | `MIRAGE_API_TOKEN` when configured |
-| `/honeytokens` | GET | List active tokens | `MIRAGE_API_TOKEN` when configured |
-| `/agent/canary` | POST | Issue a prompt-layer canary | `MIRAGE_API_TOKEN` when configured |
-| `/agent/canary/check` | POST | Scan text for canary leaks (+ triage) | `MIRAGE_API_TOKEN` when configured |
-| `/agent/scan` | POST | Runtime scan: canary + customer regex rules | `MIRAGE_API_TOKEN` when configured |
-| `/agent/proxy` | POST | Inline guard for an outbound API call (422 on leak) | `MIRAGE_API_TOKEN` when configured |
-| `/siem/export/{token}` | POST | Export evidence + triage as SIEM events | `MIRAGE_API_TOKEN` when configured |
-| `/honeypot/session` | POST | Open a dynamic LLM deception session | `MIRAGE_API_TOKEN` when configured |
-| `/honeypot/session/{id}/message` | POST | Send an attacker message; catch canary leaks | `MIRAGE_API_TOKEN` when configured |
-| `/mcp/evaluate` | POST | MCP gateway: policy + server risk + audit (403 on deny) | `MIRAGE_API_TOKEN` when configured |
-| `/mcp/audit` | GET | MCP gateway audit-log summary (in-process) | `MIRAGE_API_TOKEN` when configured |
-| `/rag/inspect` | POST | RAG guard: screen docs (allow/quarantine/reject) | `MIRAGE_API_TOKEN` when configured |
-| `/deception/playbook` | POST | Run a honeypot playbook; rotate decoy on leak | `MIRAGE_API_TOKEN` when configured |
-| `/deception/summary` | GET | Deception orchestration summary (in-process) | `MIRAGE_API_TOKEN` when configured |
-| `/behavior/analyze` | POST | Score attacker intent from events or a token's ledger | `MIRAGE_API_TOKEN` when configured |
-| `/evidence/anchor` | POST | Merkle-root a token's evidence chain + timestamp anchor | `MIRAGE_API_TOKEN` when configured |
-| `/evidence/proof` | POST | Merkle inclusion proof for one record | `MIRAGE_API_TOKEN` when configured |
-| `/evidence/verify-proof` | POST | Verify a proof from root + path only (stateless) | `MIRAGE_API_TOKEN` when configured |
-| `/dlp/scan` | POST | Checksum + entropy + context DLP (beyond regex) | `MIRAGE_API_TOKEN` when configured |
-| `/team/members` | POST | Add/update a team membership (service_role) | `MIRAGE_API_TOKEN` when configured |
-| `/team/{team_id}/members` | GET | List a team's members | `MIRAGE_API_TOKEN` when configured |
-| `/team/{team_id}/members/{user_id}` | GET/DELETE | Get role / remove membership | `MIRAGE_API_TOKEN` when configured |
-| `python -m mirage` (CLI) | — | Scan prompt artifacts for injection / jailbreak / hidden Unicode | — |
-
-### Defense modules (HTTP layer)
-
-Modular routers live in `scripts/mirage/api/routes/`; a new capability is a new
-router file, not more lines in `server.py`. Shared stores/token auth live in
-`scripts/mirage/api/deps.py` (single source; `server.py` re-exports for tests).
-
-| Module | Router | Responsibility |
-|---|---|---|
-| MCP gateway | `api/routes/mcp.py` | Policy allow/deny, server risk score, audit log |
-| RAG guard | `api/routes/rag.py` | Screen retrieved docs; allow / quarantine / reject |
-| Deception | `api/routes/deception.py` | Drive honeypot playbooks; rotate decoy on leak |
-| Behavior | `api/routes/behavior.py` | Attacker intent score from events or ledger |
-| Evidence | `api/routes/evidence.py` | Merkle anchor, inclusion proof, stateless verify |
-| DLP | `api/routes/dlp.py` | Checksum + entropy + context scanning (beyond regex) |
-
-Severity ordering (`low|medium|high|critical`) and score→level thresholds are a
-single source of truth in `scripts/mirage/severity.py`.
-
-### Next.js dashboard API
-
-| Route | Method | Purpose |
-|---|---:|---|
-| `/api?resource=stats` | GET | Dashboard KPIs |
-| `/api?resource=attackers&limit=100` | GET | Attacker table |
-| `/api?resource=beacons&limit=50` | GET | Beacon feed |
-| `/api?resource=honeytokens&limit=100` | GET | Active honeytokens |
-
-**Note:** Dashboard reads fall back to mock data (in-memory) during local
-development if Supabase is not configured. In production, reads fail closed (503)
-rather than serve stale data.
+- **Güvenlik ekipleri**: Veri sızıntılarını erken yakalamak, kanıt toplamanın adli sürecini otomatikleştirmek.
+- **AI/Agent platformları**: Prompt injection, context leakage, tool/MCP/RAG sınır ihlallerini engellemek.
+- **Uyum / Hukuk ekipleri**: Mahkemede/disiplin sürecinde kullanabilecekleri imzalı, değiştirilemez kanıt zinciri.
+- **Geliştiriciler**: Kendi ajan/uygulama kodlarına `AgentGuard`, `OutboundScanner`, `canary` entegre edip production'da sızıntıyı bloke etmek.
 
 ---
 
-## Quality metrics (measured 2026-10-01, commit `8ffe572`)
+## Nasıl Kullanılır?
 
-Reproducible numbers, not estimates. Every row can be re-run with the commands in
-[Local verification](#local-verification).
-
-### Size
-
-| Surface | Metric |
-|---|---|
-| Python engine | 8,126 LOC across 48 modules |
-| Python tests | 7,170 LOC, 436 test functions |
-| Frontend (`src/`) | 7,999 LOC TS/TSX |
-| Edge receiver (`scripts/mirage-edge/`) | 1,798 LOC TypeScript |
-| HTTP endpoints (FastAPI) | 33 |
-
-### Test & coverage
-
-| Surface | Result |
-|---|---|
-| Python (pytest) | **476 passed, 12 skipped** (0 failed) |
-| Python statement coverage | **85%** (branch coverage enabled) |
-| Frontend (vitest) | **52 passed** (6 files, 0 failed) |
-| Frontend coverage | **81.4% lines** / 73.2% statements / 59.7% branches |
-| Red-team CI gate | 3 findings, highest `high`, threshold `critical` → **exit 0** |
-| TODO / FIXME / HACK / XXX in source | **0** |
-
-Low-coverage hotspots are known and intentional: `text.py` (24%) and
-`analyzer.py` (65%) are exercised through `synthesizer` integration paths rather
-than unit-isolated; `supabase_registry.py` (60%) needs a live Supabase to cover
-the network branches; `server.py` (72%) coverage reflects route handlers whose
-happy paths are covered by the E2E and auth suites.
-
----
-
-## Environment
-
-Copy `.env.example` and fill values. **Never commit real `.env` files.**
+### 1. Hızlı Yerel Test (Docker Compose)
 
 ```bash
+git clone https://github.com/ali-ulu/mirage
+cd mirage
+
 cp .env.example .env
+# .env içine gerçek Supabase değerlerini yaz (ya da dry-run için boş bırak)
+
+docker compose -f docker-compose.prod.yml up -d
+# API:     http://localhost:8000
+# Dashboard: http://localhost:3000
+# Edge fn: http://localhost:54321/functions/v1/beacon-receiver (Supabase CLI ile)
 ```
 
-**Required for production API/dashboard reads:**
-
+**Sağlık kontrolü:**
 ```bash
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=replace-with-rotated-service-role-key
-MIRAGE_API_TOKEN=replace-with-random-token
+curl http://localhost:8000/health
+# {"status":"ok","engine":"mirage","version":"0.4.0"}
 ```
 
-**Optional for browser realtime status:**
+### 2. Honeytoken Üret (XLSX indir)
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=replace-with-anon-key
+curl -X POST http://localhost:8000/honeytoken \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [{"user_id":"u001","amount":100.50,"category":"A"}],
+    "base_url": "http://localhost:54321/functions/v1/beacon-receiver/track",
+    "label": "finans-raporu"
+  }'
+# Yanıt: XLSX dosyası + X-MIRAGE-Token header + X-MIRAGE-Tracking-URL header
 ```
 
-**Optional LLM layer:**
+### 3. Beacon Tetikle (dosya açıldığını simüle et)
 
 ```bash
-MIRAGE_LLM_PROVIDER=openai|anthropic|auto|none   # default: none
-OPENAI_API_KEY=...
-ANTHROPIC_API_KEY=...
+TOKEN="<X-MIRAGE-Token değerini headerdan al>"
+curl -A "LibreOffice/7.5" \
+     -H "X-Forwarded-For: 203.0.113.42" \
+     "http://localhost:54321/functions/v1/beacon-receiver/track/$TOKEN"
+# {"status":"ok","token":"..."}
+```
+
+### 4. Dashboard'ı Aç
+
+Tarayıcıda `http://localhost:3000` — BeaconFeed'de yeni kayıt 1 sn içinde görünür.
+
+### 5. Prompt Canary Ver / Kontrol Et
+
+```bash
+# Canary üret
+curl -X POST http://localhost:8000/agent/canary \
+  -H "Content-Type: application/json" \
+  -d '{"context":"system-prompt","label":"prod-agent"}'
+# {"canary":"[[MIRAGE-CANARY:...]]","rendered":"..."}
+
+# Metinde ara (örn. LLM cevabında)
+curl -X POST http://localhost:8000/agent/canary/check \
+  -H "Content-Type: application/json" \
+  -d '{"text":"...cevap metni... [[MIRAGE-CANARY:abc123]] ...","persist":true,"token":"<honeytoken>"}'
+```
+
+### 6. Agent Guard (inline blokaj) — Opt-in
+
+`.env`:
+```bash
+MIRAGE_AGENT_GUARD=1
+MIRAGE_GUARD_PERSIST=1
+```
+
+Artık `/agent/proxy` uçlarına giden her istek gövdesi taranır; ihlal varsa **422** döner, upstream'e gitmez.
+
+Kod içinden:
+```python
+from mirage.agent import AgentGuard, GuardBlocked
+
+guard = AgentGuard()
+try:
+    guard.guard_api_call({"prompt": "...", "secret": "..."})
+except GuardBlocked as e:
+    print("Bloklandı:", e.finding)
 ```
 
 ---
 
-## Local verification
+## Production Dağıtım Özeti
 
-Install Python dependencies (a virtualenv is not required in CI):
+| Bileşen | Nerede | Kritik Env |
+|---|---|---|
+| **Beacon Receiver (kanonik)** | Supabase Edge Function (`scripts/mirage-edge/functions/beacon-receiver`) | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MIRAGE_EVIDENCE_HMAC_KEY` |
+| **FastAPI Core** | Railway / Render / Docker | Yukarıdakiler + `MIRAGE_API_TOKEN`, `MIRAGE_CORS_ORIGINS` |
+| **Next.js Dashboard** | Vercel / Docker | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (+ server-side `SUPABASE_SERVICE_ROLE_KEY`) |
 
+**Production'da zorunlu:**
 ```bash
-python -m pip install -r scripts/requirements.txt requests
+MIRAGE_ENV=production
+MIRAGE_EVIDENCE_HMAC_KEY=<rotated>
+MIRAGE_API_TOKEN=<rotated>
 ```
 
-Python engine/tests (the exact CI set lives in `.github/workflows/ci.yml`):
+`MIRAGE_EVIDENCE_HMAC_KEY` yoksa receiver **fail-closed (503)** döner — kanıt imzalanamaz.
 
-```bash
-python -m compileall scripts/mirage scripts/*.py
-python -m pytest -q \
-  scripts/test_mirage.py scripts/test_honeytoken.py \
-  scripts/test_api_defense.py scripts/test_severity.py   # ... full list in ci.yml
-```
+---
 
-With coverage:
-
-```bash
-python -m pip install pytest-cov
-python -m pytest -q --cov=scripts/mirage --cov-branch <files-from-ci.yml>
-```
-
-Red-team gate (fails the build on findings at/above the threshold):
+## Yerel Geliştirme (venv)
 
 ```bash
 cd scripts
-python -m mirage . ../AGENTS.md ../README.md ../DEPLOYMENT.md \
-  --fail-on=critical --exclude='*test_*' --exclude='*/fixtures/*'
+python -m pip install -r requirements.txt requests
+python -m pytest -q  # 476 passed / 12 skipped
+# Red-team gate:
+python -m mirage . ../AGENTS.md ../README.md ../DEPLOYMENT.md --fail-on=critical
 ```
 
-Frontend (dependency install from `package.json` / `bun.lock`):
-
+Frontend:
 ```bash
 npm install --legacy-peer-deps
 npm run lint
 npm run build
-npm run test          # vitest run
-npx vitest run --coverage
+npm run test
 ```
 
-Edge functions (Deno):
-
+Edge (Deno):
 ```bash
 deno test --no-check --allow-net --allow-env --allow-read \
   scripts/mirage-edge/tests/beacon_receiver_test.ts \
@@ -236,50 +164,33 @@ deno test --no-check --allow-net --allow-env --allow-read \
 
 ---
 
-## Security notes
+## Mimari Kısaca
 
-- The XLSX honeytoken is passive: it embeds an external image relationship that
-  triggers an HTTP GET when an office application resolves the URL.
-- The beacon receiver rejects forbidden machine-side data fields such as
-  `process_info`, `mac_address`, `local_files`, shell output, screenshots,
-  clipboard content, keylogs, and credentials.
-- The dashboard reads through a server-side API proxy; do not add broad anon read
-  policies unless you also add user authentication and tenant scoping.
-- `SUPABASE_SERVICE_ROLE_KEY` must remain server-only.
-- ⚠️ **See `SECURITY_INCIDENT_RESPONSE_20260715.md` for the critical secret
-  rotation procedure (do not delay).**
-- **Do not embed secrets in the frontend or version control.** Use environment
-  variables for all sensitive configuration.
+```
+scripts/mirage/           # Python FastAPI motoru (33 HTTP endpoint)
+  api/routes/             # Modüler router'lar: mcp, rag, deception, behavior, evidence, dlp
+  agent/                  # Canary, Guard, Runtime scan, Planner Agent
+scripts/mirage-edge/      # Supabase Edge Function (beacon-receiver) + SQL migrations
+src/                      # Next.js 15 dashboard (React 19, Tailwind 4, shadcn/ui)
+docker-compose.prod.yml   # API + Web + Postgres (local prod benzeri)
+```
 
 ---
 
-## Production boundary update
+## Güvenlik Notları
 
-**Canonical production beacon receiver:** `scripts/mirage-edge/functions/beacon-receiver`
-
-The Next.js `/api/track` route is local-demo only. It is disabled in production and
-must not be used as the production evidence path. The dashboard mock fallback is
-also disabled in production (returns 503 if Supabase is not configured).
-
-**Full details and deployment checklist:** `BEACON_RECEIVER_BOUNDARY.md`
+- XLSX honeytoken **pasiftir**: makro, VBA, DDE, PowerShell, shell, DNS-tünel, client-side kod **yoktur**; sadece bir HTTP GET tetikler.
+- Beacon receiver yasak makine verilerini (`process_info`, `mac_address`, `local_files`, shell output, screenshot, clipboard, keylog, credential) **reddeder**.
+- Dashboard sunucu taraflı `/api` proxy'si ile okur; RLS anon'a kapalı kalabilir.
+- `SUPABASE_SERVICE_ROLE_KEY` **asla** client bundle'ına gitmez.
+- ⚠️ **Secret rotation prosedürü:** `SECURITY_INCIDENT_RESPONSE_20260715.md` — geciktirmeyin.
 
 ---
 
-## Live beacon behavior
+## Referanslar
 
-Live beacon behavior is viewer-dependent. Excel Protected View, external-content
-blocking, offline preview, or network policy can prevent the beacon. LibreOffice
-Calc remains the recommended control for live honeytoken testing.
-
----
-
-## References
-
-- `AGENTS.md` — repo rules, architecture map, and conventions for contributors/agents
-- `DEPLOYMENT.md` — setup and deployment
-- `BEACON_RECEIVER_BOUNDARY.md` — canonical vs demo receiver boundary
-- `SECURITY_INCIDENT_RESPONSE_20260715.md` — critical secret rotation incident
-- `PAZAR_ANALIZI_VE_AI_PIVOT.md` — market analysis and AI/AI-agent pivot roadmap
-- `docs/PRODUCTION_BOUNDARY.md` — production boundary summary
-- `docs/SECRET_ROTATION_CHECKLIST.md` — secret rotation checklist
-- `docs/MIRAGE_V2_V3_UPGRADE_NOTES.md` — V2/V3 upgrade notes
+- `AGENTS.md` — proje kuralları, mimari sınırlar, test komutları
+- `DEPLOYMENT.md` — 30 dk'lık production runbook
+- `BEACON_RECEIVER_BOUNDARY.md` — canonical vs demo receiver ayrımı
+- `docs/SECRET_ROTATION_CHECKLIST.md`
+- `docs/PRODUCTION_BOUNDARY.md`

@@ -99,5 +99,5 @@
     "typescript": "^5",
     "vitest": "^4.1.9"
   },
-  "description": "Synthetic honeytoken deception MVP: passive XLSX beaconing, Supabase receiver, and evidence dashboard."
+  "description": "MIRAGE — Deception-based leak detection & AI-agent security: passive XLSX honeytokens, prompt canaries, runtime scanning, inline guard, MCP gateway, RAG guard, append-only evidence chain, Next.js dashboard."
 }
