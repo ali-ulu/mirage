@@ -75,7 +75,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py \
-  scripts/mirage-edge/tests/test_canary_migration.py
+  scripts/mirage-edge/tests/test_canary_migration.py \
+  scripts/mirage-edge/tests/test_triage_rls_migration.py
 
 # Deno (edge)
 deno test --no-check --allow-net --allow-env --allow-read \
