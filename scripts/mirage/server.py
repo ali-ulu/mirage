@@ -41,6 +41,7 @@ from .supabase_registry import (
 from .triage_store import BeaconTriageStore
 from .evidence_store import EvidenceChainStore
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
+from .agent import plan_decoy_schema
 from .env import fail_fast_on_missing_env, is_production
 
 # Production startup check — fail fast if env is missing
@@ -178,6 +179,10 @@ class TriageRequest(BaseModel):
     persist: bool = Field(True, description="Persist the triage record to the append-only ledger")
 
 
+class PlanRequest(BaseModel):
+    data: list[dict[str, Any]] = Field(..., min_length=1, description="Schema sample (JSON array of objects)")
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -247,6 +252,33 @@ def synthesize(req: SynthesizeRequest, request: Request):
         media_type="text/csv",
         headers=headers,
     )
+
+
+# ---------------------------------------------------------------------------
+# Agent routes (Planner Agent — decoy planlama)
+# ---------------------------------------------------------------------------
+@app.post("/agent/plan")
+async def agent_plan(req: PlanRequest, request: Request) -> dict:
+    """
+    Bir şema örneği için decoy planı üretir (hangi kolonlar sentetik tuzak
+    verisiyle değiştirilecek, hangileri korunacak).
+
+    Planlama opsiyonel LLM ile üretilir; yapılandırılmamışsa deterministik
+    sezgisel yola düşülür. Kimlik/anahtar kolonları asla decoy yapılmaz.
+    """
+    _require_api_token(request)
+    try:
+        df = pd.DataFrame(req.data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Cannot parse data: {e}")
+
+    try:
+        provider = get_llm_provider()
+    except LLMConfigError as e:
+        raise HTTPException(status_code=503, detail=f"LLM misconfigured: {e}")
+
+    plan = await plan_decoy_schema(df, provider=provider)
+    return plan.to_dict()
 
 
 # ---------------------------------------------------------------------------

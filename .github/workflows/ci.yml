@@ -38,6 +38,7 @@ jobs:
             scripts/test_evidence_api.py \
             scripts/test_env_config.py \
             scripts/test_llm_providers.py \
+            scripts/test_planner_agent.py \
             scripts/test_beacon_triage.py \
             scripts/mirage-edge/tests/test_migration.py \
             scripts/mirage-edge/tests/test_triage_migration.py

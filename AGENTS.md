@@ -13,6 +13,13 @@ zinciri** savunmasıdır. Bir beacon tetiklendiğinde:
 
 Çekirdek savunma **LLM'siz** çalışır; LLM katmanı opsiyonel zenginleştirmedir.
 
+Opsiyonel **agent katmanı** (`scripts/mirage/agent/`) mevcut motor uçlarını tool
+olarak kullanır. İlk ajan: **Planner Agent** (`plan_decoy_schema`) — bir şema
+örneğinden hangi kolonların decoy (sentetik tuzak) hangilerinin korunacağını
+planlar. Kimlik/anahtar kolonları **asla** decoy yapılmaz (güvenlik kısıtı hem
+heuristic'te hem LLM koercisyonunda uygulanır). LLM yoksa deterministik sezgisel
+yola düşer; çekirdeği bozmaz.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -45,7 +52,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_honeytoken_integration.py scripts/test_supabase_registry.py \
   scripts/test_server_auth.py scripts/test_evidence_chain.py \
   scripts/test_evidence_api.py scripts/test_env_config.py \
-  scripts/test_llm_providers.py scripts/test_beacon_triage.py \
+  scripts/test_llm_providers.py scripts/test_planner_agent.py \
+  scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py
 
