@@ -45,10 +45,10 @@ from .llm import LLMConfigError, get_llm_provider, triage_beacon
 from .agent import (
     CanaryRegistry,
     apply_decoy_plan,
+    evaluate_rules,
     plan_decoy_schema,
     render_canary,
-    resolve_chain_binding,
-    triage_canary,
+    scan_text_for_leaks,
 )
 from .env import fail_fast_on_missing_env, is_production
 
@@ -240,6 +240,22 @@ class CanaryCheckRequest(BaseModel):
     chain_verified: Optional[bool] = Field(None, description="Evidence chain verification result, if known")
 
 
+class ScanRule(BaseModel):
+    name: str = Field(..., description="Rule name (e.g. 'aws_key')")
+    pattern: str = Field(..., description="Regex to search for")
+    severity: str = Field("low", pattern="^(low|medium|high|critical)$")
+    description: str = Field("", description="Human-readable rule description")
+
+
+class ScanRequest(BaseModel):
+    text: str = Field(..., description="Agent output / log line / tool argument to scan")
+    source: str = Field("", description="Optional source label (e.g. 'agent-output', 'tool-call')")
+    rules: list[ScanRule] = Field(default_factory=list, description="Customer-defined regex rules")
+    token: Optional[str] = Field(None, description="Honeytoken UUID to attach the leak to (for triage ledger)")
+    persist: bool = Field(False, description="Persist a triage record when a canary leak is found")
+    chain_verified: Optional[bool] = Field(None, description="Evidence chain verification result, if known")
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -396,64 +412,95 @@ async def check_prompt_canary(req: CanaryCheckRequest, request: Request) -> dict
     """
     _require_api_token(request)
     registry = get_canary_registry()
-    matches = registry.match(req.text)
-    payload = {
-        "leaked": bool(matches),
-        "count": len(matches),
-        "canaries": [c.to_dict() for c in matches],
-    }
 
-    if not matches:
-        return payload
+    if registry.match(req.text) and req.persist and req.token:
+        try:
+            triage_store = get_triage_store()
+        except SupabaseNotConfiguredError:
+            raise HTTPException(
+                status_code=503,
+                detail="Triage ledger not configured (SUPABASE_URL/SERVICE_ROLE_KEY missing)",
+            )
+    else:
+        triage_store = None
 
     try:
         provider = get_llm_provider()
     except LLMConfigError as e:
         raise HTTPException(status_code=503, detail=f"LLM misconfigured: {e}")
 
-    # Sızıntıyı ilişkili honeytoken'ın kanıt zincirine bağla (varsa).
-    binding = {"linked": False, "chain_seq": None, "chain_verified": None, "reason": None}
-    if req.token:
+    try:
+        evidence_store = get_evidence_store()
+    except SupabaseNotConfiguredError:
+        evidence_store = None
+
+    try:
+        return await scan_text_for_leaks(
+            registry=registry,
+            text=req.text,
+            provider=provider,
+            evidence_store=evidence_store,
+            triage_store=triage_store,
+            token=req.token,
+            persist=req.persist,
+            chain_verified=req.chain_verified,
+        )
+    except SupabaseOperationError:
+        raise HTTPException(status_code=502, detail="Failed to persist triage record")
+
+
+@app.post("/agent/scan")
+async def scan_agent_output(req: ScanRequest, request: Request) -> dict:
+    """
+    Runtime tarama: ajan çıktısı / log / araç çağrısı metnini canary ve
+    müşteri tanımlı kurallara göre tarar. Canary sızıntısı bulunursa
+    `/agent/canary/check` ile aynı yoldan triyajlanır (LLM opsiyonel).
+    """
+    _require_api_token(request)
+    registry = get_canary_registry()
+
+    has_canary = bool(registry.match(req.text))
+    if has_canary and req.persist and req.token:
         try:
-            evidence_store = get_evidence_store()
-        except SupabaseNotConfiguredError:
-            evidence_store = None
-        binding = resolve_chain_binding(evidence_store, req.token)
-    chain_ok = req.chain_verified if req.chain_verified is not None else binding["chain_verified"]
-
-    leak = {
-        "count": len(matches),
-        "contexts": sorted({c.context for c in matches}),
-        "canaries": [c.to_dict() for c in matches],
-        "chain_seq": binding["chain_seq"],
-    }
-    result = await triage_canary(leak, provider=provider, chain_ok=chain_ok)
-
-    model = None
-    if provider is not None and result.source.startswith("llm:"):
-        model = getattr(provider, "_model", None)
-
-    persisted = False
-    if req.persist and req.token:
-        try:
-            store = get_triage_store()
+            triage_store = get_triage_store()
         except SupabaseNotConfiguredError:
             raise HTTPException(
                 status_code=503,
                 detail="Triage ledger not configured (SUPABASE_URL/SERVICE_ROLE_KEY missing)",
             )
-        try:
-            store.save(req.token, result, chain_seq=binding["chain_seq"], model=model)
-        except SupabaseOperationError:
-            raise HTTPException(status_code=502, detail="Failed to persist triage record")
-        persisted = True
+    else:
+        triage_store = None
 
-    payload["triage"] = result.to_dict()
-    payload["chain_seq"] = binding["chain_seq"]
-    payload["chain_linked"] = binding["linked"]
-    payload["model"] = model
-    payload["persisted"] = persisted
-    return payload
+    try:
+        provider = get_llm_provider()
+    except LLMConfigError as e:
+        raise HTTPException(status_code=503, detail=f"LLM misconfigured: {e}")
+
+    try:
+        evidence_store = get_evidence_store()
+    except SupabaseNotConfiguredError:
+        evidence_store = None
+
+    try:
+        leak = await scan_text_for_leaks(
+            registry=registry,
+            text=req.text,
+            provider=provider,
+            evidence_store=evidence_store,
+            triage_store=triage_store,
+            token=req.token,
+            persist=req.persist,
+            chain_verified=req.chain_verified,
+        )
+    except SupabaseOperationError:
+        raise HTTPException(status_code=502, detail="Failed to persist triage record")
+
+    findings = evaluate_rules(req.text, [r.model_dump() for r in req.rules])
+    leak["rules"] = findings
+    leak["rule_hits"] = len(findings)
+    leak["source"] = req.source
+    leak["clean"] = not leak["leaked"] and not findings
+    return leak
 
 
 # ---------------------------------------------------------------------------

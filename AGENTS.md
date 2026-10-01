@@ -37,6 +37,12 @@ honeytoken'ın kanıt zincirine bağlanır (`canary_evidence.py`): zincir başı
 `chain_seq`'i ve doğrulama sonucu (`chain_verified`) triyaja taşınır. Kanıt
 zincirinin kendisine yazılmaz (edge function'a ait, kripto bütünlüğü var).
 
+Runtime tarama (`agent/runtime.py`, `POST /agent/scan`): ajan çıktısı / log /
+araç çağrısı metnini canary ve müşteri tanımlı regex kurallara göre tarar.
+Canary sızıntısı `/agent/canary/check` ile aynı kod yolundan (`scan_text_for_leaks`)
+triyajlanır — tek kaynak. Kurallar saf fonksiyondur, LLM gerekmez; bozuk regex
+fail-safe atlanır.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -72,7 +78,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_llm_providers.py scripts/test_planner_agent.py \
   scripts/test_prompt_canary.py scripts/test_canary_store.py \
   scripts/test_canary_triage.py scripts/test_canary_evidence.py \
-  scripts/test_llm_smoke.py scripts/test_beacon_triage.py \
+  scripts/test_llm_smoke.py scripts/test_agent_scan.py \
+  scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
   scripts/mirage-edge/tests/test_triage_migration.py \
   scripts/mirage-edge/tests/test_canary_migration.py \

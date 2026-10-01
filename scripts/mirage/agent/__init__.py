@@ -7,6 +7,7 @@ katmanı yalnızca planlama/karar zenginleştirmesi sağlar.
 from .apply import apply_decoy_plan
 from .canary_evidence import resolve_chain_binding
 from .canary_triage import build_canary_triage_messages, triage_canary
+from .runtime import evaluate_rules, scan_text_for_leaks
 from .planner import (
     ColumnDecision,
     DecoyPlan,
@@ -32,9 +33,11 @@ __all__ = [
     "build_marker",
     "build_planner_messages",
     "detect_canaries",
+    "evaluate_rules",
     "plan_decoy_schema",
     "render_canary",
     "resolve_chain_binding",
     "schema_summary",
+    "scan_text_for_leaks",
     "triage_canary",
 ]
