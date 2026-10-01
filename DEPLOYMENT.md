@@ -18,9 +18,24 @@ This runbook takes you from zero to live in ~30 minutes. All commands are copy-p
    - `Project URL` → this is your `SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → this is your `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` key → this is your `SUPABASE_SERVICE_ROLE_KEY` (KEEP SECRET — never expose to client)
-3. In the Supabase SQL Editor, paste and run **in order**:
-   - `scripts/mirage-edge/migrations/0001_initial_schema.sql`
-   - `scripts/mirage-edge/migrations/0002_honeytokens.sql`
+3. Apply the schema. Two options:
+
+   **Option A — migration runner (recommended, repeatable).** Point it at the
+   Supabase Postgres DSN (Project Settings → Database → Connection string):
+
+   ```bash
+   MIRAGE_PG_DSN="postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres" \
+     python3 scripts/apply_migrations.py
+   # dry-run first:  add --dry-run
+   # adopt an existing schema without running DDL:  add --baseline
+   ```
+
+   The runner applies `scripts/mirage-edge/migrations/*.sql` in filename order,
+   records each in `public.schema_migrations`, and is idempotent (re-running is
+   safe).
+
+   **Option B — SQL Editor.** Paste and run the files **in order** (0001…0008):
+   `0001_initial_schema.sql` … `0008_team_rls.sql`.
 4. Verify by running: `SELECT count(*) FROM attackers;` — should return 0.
 5. In **Database → Replication**, enable replication on `triggered_beacons` and `attackers` tables (required for Realtime).
 
