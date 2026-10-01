@@ -6,6 +6,16 @@ from .supabase_registry import (
     SupabaseNotConfiguredError,
     SupabaseOperationError,
 )
+from .llm import (
+    LLMConfigError,
+    LLMError,
+    LLMMessage,
+    LLMProvider,
+    LLMResponse,
+    available_providers,
+    get_llm_provider,
+    triage_beacon,
+)
 
 __all__ = [
     "MirageSynthesizer",
@@ -15,4 +25,12 @@ __all__ = [
     "SupabaseHoneytokenRegistry",
     "SupabaseNotConfiguredError",
     "SupabaseOperationError",
+    "LLMConfigError",
+    "LLMError",
+    "LLMMessage",
+    "LLMProvider",
+    "LLMResponse",
+    "available_providers",
+    "get_llm_provider",
+    "triage_beacon",
 ]
