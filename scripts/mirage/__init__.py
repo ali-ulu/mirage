@@ -16,6 +16,7 @@ from .llm import (
     get_llm_provider,
     triage_beacon,
 )
+from .triage_store import BeaconTriageStore, TriageRecord
 
 __all__ = [
     "MirageSynthesizer",
@@ -33,4 +34,6 @@ __all__ = [
     "available_providers",
     "get_llm_provider",
     "triage_beacon",
+    "BeaconTriageStore",
+    "TriageRecord",
 ]
