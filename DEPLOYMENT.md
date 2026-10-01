@@ -280,6 +280,21 @@ MIRAGE_API_TOKEN=<rotated API token>
 
 `MIRAGE_EDGE_DRY_RUN=true` is local/test only. In production, missing Supabase configuration returns `503`; it must not silently enter dry-run.
 
+Optional LLM enrichment (beacon triage). The core engine works without any LLM;
+when configured, these variables select a provider (OpenAI or Anthropic):
+
+```txt
+# "openai" | "anthropic" | "auto" | "none"  (default: auto -> first key found)
+MIRAGE_LLM_PROVIDER=auto
+OPENAI_API_KEY=<openai key>          # required when provider resolves to openai
+ANTHROPIC_API_KEY=<anthropic key>    # required when provider resolves to anthropic
+MIRAGE_LLM_MODEL=                    # optional model override
+```
+
+If no key is set (or `MIRAGE_LLM_PROVIDER=none`), triage falls back to a
+deterministic heuristic. LLM keys must live in the server runtime environment,
+never in client bundles.
+
 The Next.js `/api/track/[token]` route is local-demo only and returns `410` in production. Use the Supabase Edge Function URL as the XLSX `base_url` for production-like tests.
 
 Before publishing, run:
