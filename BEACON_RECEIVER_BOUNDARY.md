@@ -255,6 +255,6 @@ MIRAGE **does claim** (v0.2+):
 ## Questions?
 
 Refer to:
-- `MIRAGE_V2_PLAN_VE_RAPOR.md` — V2 roadmap and findings
-- `QUALITY_REPORT.md` — Test results and coverage
+- `docs/MIRAGE_V2_V3_UPGRADE_NOTES.md` — V2/V3 upgrade notes
+- `README.md` (Quality metrics) — measured test & coverage numbers
 - `DEPLOYMENT.md` — Setup instructions
