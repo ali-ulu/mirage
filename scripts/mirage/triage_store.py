@@ -39,6 +39,7 @@ class TriageRecord:
     chain_seq: Optional[int] = None
     chain_verified: Optional[bool] = None
     model: Optional[str] = None
+    team_id: Optional[str] = None
     created_at: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -72,6 +73,7 @@ class BeaconTriageStore:
         *,
         chain_seq: Optional[int] = None,
         model: Optional[str] = None,
+        team_id: Optional[str] = None,
     ) -> TriageRecord:
         """Bir triyaj sonucunu kalıcı kayda dönüştürüp yazar."""
         _validate(result.severity, result.recommended_action, result.confidence)
@@ -86,6 +88,7 @@ class BeaconTriageStore:
             chain_seq=chain_seq,
             chain_verified=result.chain_verified,
             model=model,
+            team_id=team_id,
         )
         payload = {
             "token": token,
@@ -97,6 +100,7 @@ class BeaconTriageStore:
             "source": record.source,
             "chain_verified": record.chain_verified,
             "model": record.model,
+            "team_id": record.team_id,
         }
 
         def _do_insert():
@@ -105,17 +109,15 @@ class BeaconTriageStore:
         _safe_supabase_call("insert_beacon_triage", _do_insert)
         return record
 
-    def list_for_token(self, token: str, limit: int = 50) -> list[TriageRecord]:
+    def list_for_token(
+        self, token: str, limit: int = 50, team_id: Optional[str] = None
+    ) -> list[TriageRecord]:
         """Bir token için triyaj kayıtlarını (en yeni önce) döndürür."""
         def _do_list():
-            return (
-                self._client.table(self.TABLE_NAME)
-                .select("*")
-                .eq("token", token)
-                .order("created_at", desc=True)
-                .limit(limit)
-                .execute()
-            )
+            query = self._client.table(self.TABLE_NAME).select("*").eq("token", token)
+            if team_id is not None:
+                query = query.eq("team_id", team_id)
+            return query.order("created_at", desc=True).limit(limit).execute()
 
         try:
             result = _safe_supabase_call("list_beacon_triage", _do_list)
@@ -139,5 +141,6 @@ class BeaconTriageStore:
             chain_seq=(int(row["chain_seq"]) if row.get("chain_seq") is not None else None),
             chain_verified=row.get("chain_verified"),
             model=row.get("model"),
+            team_id=(str(row["team_id"]) if row.get("team_id") is not None else None),
             created_at=(str(row["created_at"]) if row.get("created_at") is not None else None),
         )

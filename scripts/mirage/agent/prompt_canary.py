@@ -36,6 +36,7 @@ class PromptCanary:
     context: str  # "system_prompt" | "rag_document" | "agent_memory"
     label: str
     created_at: str  # ISO8601 UTC
+    team_id: Optional[str] = None  # multi-tenant sahiplik (opsiyonel)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -88,7 +89,9 @@ class CanaryRegistry:
         self.path = Path(path) if path else None
         self._records: dict[str, PromptCanary] = {}
 
-    def issue(self, context: str, label: str = "") -> PromptCanary:
+    def issue(
+        self, context: str, label: str = "", team_id: Optional[str] = None
+    ) -> PromptCanary:
         if context not in VALID_CONTEXTS:
             raise ValueError(
                 f"Invalid context {context!r}; expected one of {VALID_CONTEXTS}"
@@ -100,6 +103,7 @@ class CanaryRegistry:
             context=context,
             label=label,
             created_at=datetime.now(timezone.utc).isoformat(),
+            team_id=team_id,
         )
         self._records[token] = canary
         return canary
