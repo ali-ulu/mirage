@@ -125,6 +125,13 @@ sunucu risk puanı (`score_server`, 0..100) ve append-only denetim günlüğü
 kanca hata verirse **fail-closed** (çağrı engellenir). Env: `MIRAGE_MCP_*`
 (`default_policy_from_env`). LLM gerekmez.
 
+Zehirli RAG guard (`rag_guard.py`): getirilen dokümanı **bağlama alınmadan
+önce** tarar → `allow` | `quarantine` | `reject`. Tarama tek kaynak
+(`redteam.scan_text`); gizli Unicode her kararda temizlenir (red'de metin
+boşaltılır). Eşikler: `MIRAGE_RAG_BLOCK` (varsayılan critical) /
+`MIRAGE_RAG_QUARANTINE` (varsayılan high). `quarantine_sink` hatası kararı
+bozmaz.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -163,7 +170,8 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_llm_smoke.py scripts/test_llm_live.py scripts/test_agent_scan.py \
   scripts/test_agent_middleware.py scripts/test_agent_guard.py \
   scripts/test_siem_export.py scripts/test_honeypot.py scripts/test_redteam.py \
-  scripts/test_mcp_gateway.py scripts/test_outbound_scan.py \
+  scripts/test_mcp_gateway.py scripts/test_rag_guard.py \
+  scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
   scripts/mirage-edge/tests/test_migration.py \
