@@ -59,6 +59,37 @@ def _safe_supabase_call(operation_name: str, fn):
         ) from e
 
 
+def build_supabase_client_from_env() -> SupabaseClient:
+    """
+    SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY env'inden server-side Supabase
+    client'ı oluşturur. Eksikse SupabaseNotConfiguredError yükseltir.
+
+    Registry ve triyaj store'u bu tek kurulumu paylaşır (DRY).
+    """
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise SupabaseNotConfiguredError(
+            "Supabase registry requires either an explicit client or "
+            "SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY environment variables. "
+            f"Got: SUPABASE_URL={'set' if url else 'missing'}, "
+            f"KEY={'set' if key else 'missing'}"
+        )
+    if create_client is None:
+        raise SupabaseNotConfiguredError(
+            "supabase-py not installed. Run: pip install supabase"
+        )
+    # supabase-py 2.x uses ClientOptions
+    if ClientOptions is not None:
+        # Server-side (service role) usage — no session, no refresh
+        options = ClientOptions(
+            auto_refresh_token=False,
+            persist_session=False,
+        )
+        return create_client(url, key, options=options)
+    return create_client(url, key)
+
+
 class SupabaseHoneytokenRegistry:
     """
     Production honeytoken registry backed by Supabase PostgreSQL.
@@ -78,32 +109,7 @@ class SupabaseHoneytokenRegistry:
         if client is not None:
             self._client = client
         else:
-            self._client = self._build_client_from_env()
-
-    @staticmethod
-    def _build_client_from_env() -> SupabaseClient:
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        if not url or not key:
-            raise SupabaseNotConfiguredError(
-                "Supabase registry requires either an explicit client or "
-                "SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY environment variables. "
-                f"Got: SUPABASE_URL={'set' if url else 'missing'}, "
-                f"KEY={'set' if key else 'missing'}"
-            )
-        if create_client is None:
-            raise SupabaseNotConfiguredError(
-                "supabase-py not installed. Run: pip install supabase"
-            )
-        # supabase-py 2.x uses ClientOptions
-        if ClientOptions is not None:
-            # Server-side (service role) usage — no session, no refresh
-            options = ClientOptions(
-                auto_refresh_token=False,
-                persist_session=False,
-            )
-            return create_client(url, key, options=options)
-        return create_client(url, key)
+            self._client = build_supabase_client_from_env()
 
     # ------------------------------------------------------------------
     # Public API — HoneytokenRecord döndürür (geriye uyumlu)

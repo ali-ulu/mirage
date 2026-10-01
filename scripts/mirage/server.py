@@ -38,6 +38,8 @@ from .supabase_registry import (
     SupabaseNotConfiguredError,
     SupabaseOperationError,
 )
+from .triage_store import BeaconTriageStore
+from .llm import LLMConfigError, get_llm_provider, triage_beacon
 from .env import fail_fast_on_missing_env, is_production
 
 # Production startup check — fail fast if env is missing
@@ -64,6 +66,27 @@ def reset_registry_for_testing(client=None) -> None:
         _REGISTRY = SupabaseHoneytokenRegistry(client=client)
     else:
         _REGISTRY = None
+
+
+# Beacon triyaj defteri (kanıt zincirine bağlı, ayrı append-only store).
+_TRIAGE_STORE: Optional[BeaconTriageStore] = None
+
+
+def get_triage_store() -> BeaconTriageStore:
+    """Lazy singleton — Supabase env yoksa SupabaseNotConfiguredError."""
+    global _TRIAGE_STORE
+    if _TRIAGE_STORE is None:
+        _TRIAGE_STORE = BeaconTriageStore()
+    return _TRIAGE_STORE
+
+
+def reset_triage_store_for_testing(client=None) -> None:
+    """Test hook — inject a mock client or reset to None."""
+    global _TRIAGE_STORE
+    if client is not None:
+        _TRIAGE_STORE = BeaconTriageStore(client=client)
+    else:
+        _TRIAGE_STORE = None
 
 
 app = FastAPI(
@@ -120,6 +143,17 @@ class HoneytokenRequest(BaseModel):
 
 class HoneytokenLookupRequest(BaseModel):
     token: str = Field(..., description="Token to look up in the registry")
+
+
+class TriageRequest(BaseModel):
+    token: str = Field(..., description="Honeytoken token (UUID) that triggered")
+    event: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Beacon event fields (user_agent, distinct_ips, opener_app, ...)",
+    )
+    chain_seq: Optional[int] = Field(None, description="Related evidence chain_seq, if known")
+    chain_verified: Optional[bool] = Field(None, description="Evidence chain verification result")
+    persist: bool = Field(True, description="Persist the triage record to the append-only ledger")
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +324,74 @@ def list_honeytokens(request: Request):
             detail="Registry not configured",
         )
     records = registry.list_active(limit=100)
+    return {
+        "count": len(records),
+        "records": [r.to_dict() for r in records],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Beacon triage routes (P0 follow-up — kanıt zincirine bağlı triyaj kaydı)
+# ---------------------------------------------------------------------------
+@app.post("/beacon/triage", status_code=201)
+async def create_beacon_triage(req: TriageRequest, request: Request) -> dict:
+    """
+    Bir beacon olayını triyaj eder ve sonucu append-only deftere yazar.
+
+    Triyaj opsiyonel LLM (OpenAI/Anthropic) ile üretilir; yapılandırılmamışsa
+    deterministik sezgisel yola düşülür. Opsiyonel LLM katmanı çekirdeği
+    bozmaz: her durumda geçerli bir sonuç döner.
+    """
+    _require_api_token(request)
+
+    try:
+        provider = get_llm_provider()
+    except LLMConfigError as e:
+        raise HTTPException(status_code=503, detail=f"LLM misconfigured: {e}")
+
+    result = await triage_beacon(
+        req.event,
+        provider=provider,
+        chain_ok=req.chain_verified,
+    )
+
+    model = None
+    if provider is not None and result.source.startswith("llm:"):
+        model = getattr(provider, "_model", None)
+
+    record = None
+    if req.persist:
+        try:
+            store = get_triage_store()
+        except SupabaseNotConfiguredError:
+            raise HTTPException(
+                status_code=503,
+                detail="Triage ledger not configured (SUPABASE_URL/SERVICE_ROLE_KEY missing)",
+            )
+        except SupabaseOperationError:
+            raise HTTPException(status_code=502, detail="Failed to persist triage record")
+        try:
+            record = store.save(req.token, result, chain_seq=req.chain_seq, model=model)
+        except SupabaseOperationError:
+            raise HTTPException(status_code=502, detail="Failed to persist triage record")
+
+    payload = result.to_dict()
+    payload["token"] = req.token
+    payload["chain_seq"] = req.chain_seq
+    payload["model"] = model
+    payload["persisted"] = record is not None
+    return payload
+
+
+@app.get("/beacon/triage/{token}")
+def list_beacon_triage(token: str, request: Request) -> dict:
+    """Bir token için triyaj kayıtlarını (en yeni önce) döndürür."""
+    _require_api_token(request)
+    try:
+        store = get_triage_store()
+    except SupabaseNotConfiguredError:
+        raise HTTPException(status_code=503, detail="Triage ledger not configured")
+    records = store.list_for_token(token, limit=50)
     return {
         "count": len(records),
         "records": [r.to_dict() for r in records],
