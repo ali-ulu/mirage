@@ -132,6 +132,12 @@ boşaltılır). Eşikler: `MIRAGE_RAG_BLOCK` (varsayılan critical) /
 `MIRAGE_RAG_QUARANTINE` (varsayılan high). `quarantine_sink` hatası kararı
 bozmaz.
 
+Davranış analitiği (`behavior.py`): triyaj kayıtlarından (dict/dataclass)
+saldırgan niyeti skorlar → `BehaviorProfile` (intent_score 0..100, seviye,
+sofistike sınıf, sinyaller, önerilen aksiyon). Sinyaller: şiddet tırmanışı,
+kanıt kurcalama, çok yüzeyli/yaygın sızıntı, dağıtık aktör, tekrarlı
+eskalasyon. Store'a bağımsız; LLM gerekmez.
+
 ## Değişmez kurallar
 - **Raporlar Türkçe** yazılır.
 - **Her PR tek amaç** taşır; kapsamı tek bir iş kalemidir. Refactor/teknik borç
@@ -170,7 +176,7 @@ python -m pytest -q scripts/test_mirage.py scripts/test_honeytoken.py \
   scripts/test_llm_smoke.py scripts/test_llm_live.py scripts/test_agent_scan.py \
   scripts/test_agent_middleware.py scripts/test_agent_guard.py \
   scripts/test_siem_export.py scripts/test_honeypot.py scripts/test_redteam.py \
-  scripts/test_mcp_gateway.py scripts/test_rag_guard.py \
+  scripts/test_mcp_gateway.py scripts/test_rag_guard.py scripts/test_behavior.py \
   scripts/test_outbound_scan.py \
   scripts/test_team_store.py scripts/test_apply_migrations_live.py \
   scripts/test_team_id.py scripts/test_beacon_triage.py \
