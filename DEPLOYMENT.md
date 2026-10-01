@@ -315,6 +315,16 @@ If no key is set (or `MIRAGE_LLM_PROVIDER=none`), triage falls back to a
 deterministic heuristic. LLM keys must live in the server runtime environment,
 never in client bundles.
 
+Smoke-test the live path against your keys (skips automatically when unset):
+
+```bash
+MIRAGE_LLM_PROVIDER=openai    OPENAI_API_KEY=...    python3 -m pytest scripts/test_llm_live.py -v
+MIRAGE_LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=... python3 -m pytest scripts/test_llm_live.py -v
+```
+
+`test_llm_live.py` verifies hybrid selection, a real provider completion, and
+the end-to-end canary-leak → LLM-triage path (`source=llm:<provider>`).
+
 Automatic runtime scanning (optional). When enabled, every JSON response body
 is scanned for registered prompt-canary leaks and customer regex rules; a hit
 is logged (and can be persisted to the triage ledger). Off by default:
