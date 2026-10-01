@@ -416,24 +416,3 @@ def _normalize_cell(value) -> object:
     if isinstance(value, float) and pd.isna(value):
         return None
     return value
-
-
-# =============================================================================
-# Registry + inject birlikte kullanım için convenience fonksiyon
-# =============================================================================
-def inject_honeytoken_with_record(
-    df: pd.DataFrame,
-    base_url: str,
-    registry: HoneytokenRegistry,
-    label: str = "",
-    sheet_name: str = "Sheet",
-) -> tuple[bytes, HoneytokenRecord]:
-    """
-    inject_honeytoken + HoneytokenRegistry birlikte.
-    Token registry'ye kaydedilir, böylece Task 03 beacon geldiğinde eşleştirilebilir.
-    """
-    record = registry.issue(df, base_url=base_url, label=label)
-    xlsx_bytes = inject_honeytoken(
-        df, base_url=base_url, sheet_name=sheet_name, token=record.token
-    )
-    return xlsx_bytes, record

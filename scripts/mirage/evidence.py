@@ -133,16 +133,6 @@ def build_evidence_record(
     return {**base, "record_hash": rh, "hmac": compute_hmac(key, rh)}
 
 
-def next_chain_position(head: Optional[dict[str, Any]]) -> tuple[int, str]:
-    """
-    Zincir başındaki (en yüksek chain_seq'li) kayda göre bir sonraki
-    (chain_seq, prev_hash) çiftini döndürür. head None ise genesis.
-    """
-    if not head:
-        return 1, GENESIS_HASH
-    return int(head["chain_seq"]) + 1, str(head["record_hash"])
-
-
 def resolve_evidence_key() -> str:
     """
     Kanıt imzalama anahtarını çözer (TS `resolveEvidenceKey` ile aynı sözleşme):
