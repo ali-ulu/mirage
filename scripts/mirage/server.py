@@ -41,6 +41,7 @@ from .supabase_registry import (
 from .triage_store import BeaconTriageStore
 from .evidence_store import EvidenceChainStore
 from .siem import SiemError, export_token, get_siem_sink
+from .honeypot import HoneypotEngine
 from .team_store import TeamMembershipStore
 from .canary_store import SupabaseCanaryRegistry
 from .llm import LLMConfigError, get_llm_provider, triage_beacon
@@ -131,6 +132,24 @@ def reset_triage_store_for_testing(client=None) -> None:
         _TRIAGE_STORE = BeaconTriageStore(client=client)
     else:
         _TRIAGE_STORE = None
+
+
+# Dinamik LLM honeypot motoru (oturum içi; canary registry'sini paylaşır).
+_HONEYPOT_ENGINE: Optional[HoneypotEngine] = None
+
+
+def get_honeypot_engine() -> HoneypotEngine:
+    """Lazy singleton — canary registry'sini paylaşır (sızıntı yakalama)."""
+    global _HONEYPOT_ENGINE
+    if _HONEYPOT_ENGINE is None:
+        _HONEYPOT_ENGINE = HoneypotEngine(registry=get_canary_registry())
+    return _HONEYPOT_ENGINE
+
+
+def reset_honeypot_engine_for_testing() -> None:
+    """Test hook — motoru sıfırlar (bir sonraki çağrıda yeniden kurulur)."""
+    global _HONEYPOT_ENGINE
+    _HONEYPOT_ENGINE = None
 
 
 # Kanıt zinciri okuma/doğrulama deposu.
@@ -566,6 +585,18 @@ class ProxyCallRequest(BaseModel):
     rules: list[ScanRule] = Field(default_factory=list, description="Customer-defined regex rules")
 
 
+class HoneypotCreateRequest(BaseModel):
+    token: Optional[str] = Field(None, description="Honeytoken UUID to attach the session to")
+    context: Optional[str] = Field(None, description="Context hint for the generated persona")
+
+
+class HoneypotMessageRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="Attacker message to the honeypot")
+    persist: bool = Field(False, description="Persist a triage record when a leak is caught")
+    chain_verified: Optional[bool] = Field(None, description="Evidence chain verification result, if known")
+    team_id: Optional[str] = Field(None, description="Multi-tenant owner recorded on the triage record")
+
+
 @app.post("/agent/proxy")
 async def agent_proxy(req: ProxyCallRequest, request: Request) -> dict:
     """
@@ -593,6 +624,86 @@ async def agent_proxy(req: ProxyCallRequest, request: Request) -> dict:
         "url": req.url,
         "method": req.method,
         "leak": report,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Dinamik LLM honeypot (deception — VelLMes/DECEIVE parity)
+# ---------------------------------------------------------------------------
+@app.post("/honeypot/session", status_code=201)
+async def create_honeypot_session(req: HoneypotCreateRequest, request: Request) -> dict:
+    """
+    Yeni bir deception oturumu açar. Persona LLM ile üretilir (opsiyonel);
+    LLM yoksa deterministik uydurma personaya düşülür. Persona sırrına bir
+    canary işlenir; saldırgan sızdırırsa yakalanır.
+    """
+    _require_api_token(request)
+    try:
+        provider = get_llm_provider()
+    except LLMConfigError as e:
+        raise HTTPException(status_code=503, detail=f"LLM misconfigured: {e}")
+    engine = get_honeypot_engine()
+    session = await engine.create_session(token=req.token, context=req.context, provider=provider)
+    return session.to_dict(include_transcript=False)
+
+
+@app.post("/honeypot/session/{session_id}/message")
+async def honeypot_message(
+    session_id: str, req: HoneypotMessageRequest, request: Request
+) -> dict:
+    """
+    Saldırgan mesajına deception yanıtı üretir ve canary sızıntısını yakalar.
+
+    Sızıntı yakalanırsa ve `persist` ise triyaj defterine yazılır (kanıt zinciri
+    doğrulaması ile birlikte). 404: oturum bulunamadı.
+    """
+    _require_api_token(request)
+    engine = get_honeypot_engine()
+    session = engine.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Honeypot session not found")
+
+    try:
+        provider = get_llm_provider()
+    except LLMConfigError as e:
+        raise HTTPException(status_code=503, detail=f"LLM misconfigured: {e}")
+
+    turn = await engine.respond(session, req.message, provider=provider)
+
+    triage = None
+    if turn.leaked and req.persist and req.token:
+        try:
+            triage_store = get_triage_store()
+        except SupabaseNotConfiguredError:
+            raise HTTPException(
+                status_code=503,
+                detail="Triage ledger not configured (SUPABASE_URL/SERVICE_ROLE_KEY missing)",
+            )
+        try:
+            evidence_store = get_evidence_store()
+        except SupabaseNotConfiguredError:
+            evidence_store = None
+        try:
+            triage = await scan_text_for_leaks(
+                registry=engine.registry,
+                text=req.message,
+                provider=provider,
+                evidence_store=evidence_store,
+                triage_store=triage_store,
+                token=req.token,
+                persist=True,
+                chain_verified=req.chain_verified,
+                team_id=req.team_id,
+            )
+        except SupabaseOperationError:
+            raise HTTPException(status_code=502, detail="Failed to persist triage record")
+
+    return {
+        "session_id": session_id,
+        "reply": turn.reply,
+        "leaked": turn.leaked,
+        "canary_hits": turn.canary_hits,
+        "triage": triage,
     }
 
 
