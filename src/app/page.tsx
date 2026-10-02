@@ -18,11 +18,13 @@
 import { KpiCard } from '@/components/mirage/kpi-card'
 import { AttackerTable } from '@/components/mirage/attacker-table'
 import { BeaconFeed } from '@/components/mirage/beacon-feed'
+import { TriagePanel } from '@/components/mirage/triage-panel'
 import Link from 'next/link'
 import {
   useMirageStats,
   useMirageAttackers,
   useMirageBeacons,
+  useMirageTriage,
   useMirageRealtime,
 } from '@/lib/mirage/supabase-client'
 import { relativeTime } from '@/lib/mirage/types'
@@ -31,6 +33,7 @@ export default function Home() {
   const { stats, loading: statsLoading, error: statsError } = useMirageStats()
   const { attackers, loading: attackersLoading, error: attackersError } = useMirageAttackers(100)
   const { beacons, loading: beaconsLoading, error: beaconsError } = useMirageBeacons(50)
+  const { triage, loading: triageLoading, error: triageError } = useMirageTriage(25)
 
   // Realtime status indicator
   const { status: rtStatus } = useMirageRealtime({
@@ -161,6 +164,11 @@ export default function Home() {
               )}
             </div>
             <BeaconFeed beacons={beacons} />
+            <TriagePanel
+              triage={triage}
+              loading={triageLoading}
+              error={triageError}
+            />
           </div>
         </section>
 

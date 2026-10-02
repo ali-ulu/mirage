@@ -54,6 +54,26 @@ vi.mock('@/lib/mirage/supabase-client', () => ({
     error: null,
     refresh: vi.fn(),
   })),
+  useMirageTriage: vi.fn(() => ({
+    triage: [
+      {
+        id: 't1',
+        token: '550e8400-e29b-41d4-a716-446655440000',
+        chain_seq: 1,
+        severity: 'critical' as const,
+        confidence: 0.9,
+        rationale: 'Bilinmeyen ağdan ilk açılış.',
+        recommended_action: 'escalate' as const,
+        source: 'llm:openai',
+        chain_verified: true,
+        model: 'gpt-4o-mini',
+        created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      },
+    ],
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+  })),
   useMirageRealtime: vi.fn(() => ({
     status: 'connected' as const,
     lastEvent: null,
@@ -116,6 +136,14 @@ describe('MIRAGE Dashboard Home', () => {
     await waitFor(() => {
       expect(screen.getByTestId('beacon-feed')).toBeInTheDocument()
     })
+  })
+
+  it('TriagePanel render edilir (AI katmanı görünür)', async () => {
+    render(<Home />)
+    await waitFor(() => {
+      expect(screen.getByTestId('triage-panel')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('triage-panel').textContent).toMatch(/AI Triyaj/i)
   })
 
   it('real-time status indicator gösterir (LIVE)', async () => {

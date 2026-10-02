@@ -2,6 +2,7 @@ export interface MockDb {
   attackers: any[]
   beacons: any[]
   honeytokens: any[]
+  triage: any[]
 }
 
 // Global variable to persist across Next.js hot-reloads in development
@@ -39,6 +40,36 @@ export const mockDb: MockDb = globalForMockDb.mockDb || {
       triggered_count: 1,
       issued_at: new Date(Date.now() - 7200000).toISOString(),
       last_triggered_at: new Date(Date.now() - 1800000).toISOString()
+    }
+  ],
+  // Local demo triyaj kayıtları — AI katmanının ürettiği değerlendirmeler.
+  // Production'da bu kayıtlar FastAPI /beacon/triage üzerinden yazılır.
+  triage: [
+    {
+      id: "t-1",
+      token: "b24044f4-d07a-4a94-82a4-69ad215924a1",
+      chain_seq: 1,
+      severity: "critical",
+      confidence: 0.92,
+      rationale: "Bilinen saldırgan IP, kurumsal ağ aralığı dışında ve token ilk kez açılıyor.",
+      recommended_action: "escalate",
+      source: "llm:openai",
+      chain_verified: true,
+      model: "gpt-4o-mini",
+      created_at: new Date(Date.now() - 1500000).toISOString()
+    },
+    {
+      id: "t-2",
+      token: "b24044f4-d07a-4a94-82a4-69ad215924a1",
+      chain_seq: 2,
+      severity: "low",
+      confidence: 0.41,
+      rationale: "Beyaz listedeki ofis uygulaması, normal çalışma saatleri.",
+      recommended_action: "monitor",
+      source: "heuristic",
+      chain_verified: true,
+      model: null,
+      created_at: new Date(Date.now() - 600000).toISOString()
     }
   ]
 }
