@@ -159,6 +159,7 @@ tar tzf mirage-YYYYMMDD-HHMMSS.tar.gz | grep -i 'api_token' && echo "❌ FAIL: A
 
 ## Reporting
 
-This incident is documented in: `SECURITY_INCIDENT_RESPONSE_20260715.md`
+This incident is documented in: `docs/SECURITY_INCIDENT_RESPONSE_20260715.md`
+Secret rotation steps: `docs/SECRET_ROTATION_CHECKLIST.md`
 
 Reference: BULGU-1 (MIRAGE V2 Plan, Section 1)

@@ -1,6 +1,6 @@
 # MIRAGE Beacon Receiver Boundary
 
-**Status:** v0.2.0 (Current)  
+**Status:** v0.4.0 (Current)  
 **Last Updated:** 2026-07-15  
 
 ---
@@ -255,6 +255,8 @@ MIRAGE **does claim** (v0.2+):
 ## Questions?
 
 Refer to:
-- `docs/MIRAGE_V2_V3_UPGRADE_NOTES.md` — V2/V3 upgrade notes
-- `README.md` (Quality metrics) — measured test & coverage numbers
-- `DEPLOYMENT.md` — Setup instructions
+- `README.md` — overview and measured test numbers
+- `AGENTS.md` — project rules and architecture boundaries
+- `DEPLOYMENT.md` — setup and production runbook
+- `docs/PRODUCTION_BOUNDARY.md` — fail-closed production boundaries
+- `docs/MIRAGE_V2_V3_UPGRADE_NOTES.md` — V2 closure targets and V3 backlog

@@ -41,18 +41,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-local-*
-.claude
-.z-ai-config
-*.log
-dev.log
-dev.out.log
-test
-prompt
-
-server.log
-# Skills directory
+# local agent/editor scratch (root-level only)
+/local-*
+/.claude/
+/.z-ai-config/
 /skills/
+/.zscripts/
+*.log
 
 # Python
 __pycache__/
@@ -60,24 +55,16 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
-downloads/
-Caddyfile.local
-.zscripts/
-.vercel
+/downloads/
 
 # MIRAGE release/runtime hygiene
 mirage-release.zip
 *.evidence.json
 *.xlsx
 *.xlsm
-*.png
-*.jpg
-*.jpeg
-*.webp
 *.gif
-download/
-downloads/
-.vercel/
 desktop.ini
-prisma/dev.db
 memory.db
+
+# Caddy local override
+Caddyfile.local
