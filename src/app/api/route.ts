@@ -4,6 +4,7 @@ import type {
   Attacker,
   BeaconTriage,
   DashboardStats,
+  PromptCanary,
   EvidenceChainRecord,
   EvidenceVerifyResult,
   TriggeredBeacon,
@@ -21,6 +22,7 @@ type MirageResource =
   | 'beacons'
   | 'honeytokens'
   | 'triage'
+  | 'canaries'
   | 'evidence'
   | 'evidenceVerify'
 
@@ -66,6 +68,7 @@ function parseResource(req: NextRequest): MirageResource | null {
     resource === 'beacons' ||
     resource === 'honeytokens' ||
     resource === 'triage' ||
+    resource === 'canaries' ||
     resource === 'evidence' ||
     resource === 'evidenceVerify'
   ) {
@@ -193,6 +196,27 @@ type EvidenceRow = EvidenceChainRecord & {
  * `hmac` ve `prev_hash` frontend'e GÖNDERİLMEZ. İmza ve önceki hash
  * değerleri sızsaydı saldırgan zincirin içeriğini taklit edebilirdi.
  */
+/**
+ * Prompt canary'lerini okur.
+ *
+ * `marker` alanı tam olarak frontend'e gider ama panel kısaltarak gösterir.
+ * API katmanında maskelemek yerine sunucu tarafında maskeliyoruz: böylece
+ * başka bir istemci bu resource'u çağırsa da tam işaret sızmaz.
+ */
+async function getCanaries(
+  client: SupabaseClient,
+  limit: number
+): Promise<PromptCanary[]> {
+  const { data, error } = await client
+    .from('prompt_canaries')
+    .select('id, token, marker, context, label, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return (data || []) as PromptCanary[]
+}
+
 async function getEvidenceChain(
   client: SupabaseClient,
   token: string
@@ -391,6 +415,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (resource === 'attackers') return json(mockDb.attackers)
       if (resource === 'beacons') return json(mockDb.beacons)
       if (resource === 'triage') return json(mockDb.triage)
+      if (resource === 'canaries') return json(mockDb.canaries)
       if (resource === 'evidence') return json(mockDb.evidence)
       if (resource === 'evidenceVerify') return json(mockDb.evidenceVerify)
       return json(mockDb.honeytokens)
@@ -430,6 +455,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (resource === 'attackers') return json(await getAttackers(client, parseLimit(req, 100, 500)))
     if (resource === 'beacons') return json(await getBeacons(client, parseLimit(req, 50, 500)))
     if (resource === 'triage') return json(await getTriage(client, parseLimit(req, 25, 100)))
+    if (resource === 'canaries') return json(await getCanaries(client, parseLimit(req, 50, 200)))
     return json(await getHoneytokens(client, parseLimit(req, 100, 500)))
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unexpected Supabase query error'

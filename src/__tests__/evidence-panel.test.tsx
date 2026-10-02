@@ -123,8 +123,8 @@ describe('EvidencePanel', () => {
 
   it('imza veya prev_hash degerlerini GOSTERMEZ', () => {
     // Bu alanlar frontend e gomulurse zincir taklit edilebilir
-    const record = { ...records[0] } as Record<string, unknown>
-    render(<EvidencePanel records={[record as EvidenceChainRecord]} verification={verified} />)
+    const record = { ...records[0] } as unknown as EvidenceChainRecord
+    render(<EvidencePanel records={[record]} verification={verified} />)
     const panel = screen.getByTestId('evidence-panel')
     expect(panel.textContent).not.toContain('hmac')
     expect(panel.textContent).not.toContain('prev_hash')

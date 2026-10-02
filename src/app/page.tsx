@@ -19,6 +19,7 @@ import { KpiCard } from '@/components/mirage/kpi-card'
 import { AttackerTable } from '@/components/mirage/attacker-table'
 import { BeaconFeed } from '@/components/mirage/beacon-feed'
 import { TriagePanel } from '@/components/mirage/triage-panel'
+import { CanaryPanel } from '@/components/mirage/canary-panel'
 import { EvidencePanel } from '@/components/mirage/evidence-panel'
 import Link from 'next/link'
 import {
@@ -26,6 +27,7 @@ import {
   useMirageAttackers,
   useMirageBeacons,
   useMirageTriage,
+  useMirageCanaries,
   useMirageEvidence,
   useMirageRealtime,
 } from '@/lib/mirage/supabase-client'
@@ -36,6 +38,7 @@ export default function Home() {
   const { attackers, loading: attackersLoading, error: attackersError } = useMirageAttackers(100)
   const { beacons, loading: beaconsLoading, error: beaconsError } = useMirageBeacons(50)
   const { triage, loading: triageLoading, error: triageError } = useMirageTriage(25)
+  const { canaries, loading: canariesLoading, error: canariesError } = useMirageCanaries(50)
 
   // Kanıt zinciri bir token'a bağlıdır: en güncel beacon'ın token'ı seçilir.
   const latestToken = beacons[0]?.token ?? null
@@ -187,6 +190,11 @@ export default function Home() {
               triage={triage}
               loading={triageLoading}
               error={triageError}
+            />
+            <CanaryPanel
+              canaries={canaries}
+              loading={canariesLoading}
+              error={canariesError}
             />
           </div>
         </section>

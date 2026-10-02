@@ -3,6 +3,7 @@ export interface MockDb {
   beacons: any[]
   honeytokens: any[]
   triage: any[]
+  canaries: any[]
   evidence: any[]
   evidenceVerify: any
 }
@@ -72,6 +73,34 @@ export const mockDb: MockDb = globalForMockDb.mockDb || {
       chain_verified: true,
       model: null,
       created_at: new Date(Date.now() - 600000).toISOString()
+    }
+  ],
+  // Prompt-layer canary demo kayıtları. Gerçek kayıtlar ajanın
+  // bağlamına gömülen [[MIRAGE-CANARY:<uuid>]] işaretleridir.
+  canaries: [
+    {
+      id: "c-1",
+      token: "550e8400-e29b-41d4-a716-446655440000",
+      marker: "[[MIRAGE-CANARY:550e8400-e29b-41d4-a716-446655440000]]",
+      context: "system_prompt",
+      label: "destek-botu-v2",
+      created_at: new Date(Date.now() - 86400000).toISOString()
+    },
+    {
+      id: "c-2",
+      token: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+      marker: "[[MIRAGE-CANARY:6ba7b810-9dad-11d1-80b4-00c04fd430c8]]",
+      context: "rag_document",
+      label: "urun-katalogu-2026q1",
+      created_at: new Date(Date.now() - 172800000).toISOString()
+    },
+    {
+      id: "c-3",
+      token: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      marker: "[[MIRAGE-CANARY:7c9e6679-7425-40de-944b-e07fc1f90ae7]]",
+      context: "agent_memory",
+      label: "satis-ajanlari",
+      created_at: new Date(Date.now() - 604800000).toISOString()
     }
   ],
   // Kanıt zinciri demo kayıtları. Gerçek zincir `triggered_beacons`
