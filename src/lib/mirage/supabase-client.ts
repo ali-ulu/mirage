@@ -15,6 +15,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   Attacker,
   BeaconTriage,
+  EvidenceChainRecord,
+  EvidenceVerifyResult,
   TriggeredBeacon,
   DashboardStats,
 } from './types'
@@ -319,6 +321,74 @@ export interface UseMirageTriageResult {
   loading: boolean
   error: Error | null
   refresh: () => void
+}
+
+// =============================================================================
+// Evidence chain hook — kanıt zinciri + sunucu tarafı doğrulama
+// =============================================================================
+export interface UseMirageEvidenceResult {
+  records: EvidenceChainRecord[]
+  verification: EvidenceVerifyResult | null
+  loading: boolean
+  error: Error | null
+  refresh: () => void
+}
+
+/**
+ * Bir honeytoken'ın kanıt zincirini çeker ve bütünlüğünü doğrular.
+ *
+ * HMAC doğrulaması SUNUCUDA yapılır (`/api?resource=evidenceVerify`).
+ * `MIRAGE_EVIDENCE_HMAC_KEY` tarayıcıya hiç gönderilmez; frontend yalnızca
+ * `{ok, checked, broken_at, reason}` sonucunu görür.
+ *
+ * Token verilmezse hook boş kalır — çağıran panel yalnızca seçili token
+ * için kanıt gösterir.
+ */
+export function useMirageEvidence(token: string | null): UseMirageEvidenceResult {
+  const [records, setRecords] = useState<EvidenceChainRecord[]>([])
+  const [verification, setVerification] = useState<EvidenceVerifyResult | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), [])
+
+  useEffect(() => {
+    if (!token) {
+      setRecords([])
+      setVerification(null)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
+    let cancelled = false
+
+    const fetchEvidence = async () => {
+      try {
+        setLoading(true)
+
+        const [chain, verify] = await Promise.all([
+          fetchMirageApi<EvidenceChainRecord[]>('evidence', { token }),
+          fetchMirageApi<EvidenceVerifyResult>('evidenceVerify', { token }),
+        ])
+
+        if (cancelled) return
+        setRecords(chain)
+        setVerification(verify)
+        setError(null)
+      } catch (err) {
+        if (!cancelled) setError(err as Error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    fetchEvidence()
+    return () => { cancelled = true }
+  }, [token, refreshKey])
+
+  return { records, verification, loading, error, refresh }
 }
 
 export function useMirageTriage(limit = 25): UseMirageTriageResult {

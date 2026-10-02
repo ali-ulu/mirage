@@ -3,6 +3,8 @@ export interface MockDb {
   beacons: any[]
   honeytokens: any[]
   triage: any[]
+  evidence: any[]
+  evidenceVerify: any
 }
 
 // Global variable to persist across Next.js hot-reloads in development
@@ -71,7 +73,35 @@ export const mockDb: MockDb = globalForMockDb.mockDb || {
       model: null,
       created_at: new Date(Date.now() - 600000).toISOString()
     }
-  ]
+  ],
+  // Kanıt zinciri demo kayıtları. Gerçek zincir `triggered_beacons`
+  // tablosundaki prev_hash/record_hash/hmac alanlarıdır; mock'ta
+  // yalnızca görüntülenecek kısım bulunur (hash'ler kısaltılmıştır).
+  evidence: [
+    {
+      token: "b24044f4-d07a-4a94-82a4-69ad215924a1",
+      ip: "192.168.1.15",
+      user_agent: "Mozilla/5.0 Microsoft Excel/16.0",
+      received_at: new Date(Date.now() - 1800000).toISOString(),
+      chain_seq: 1,
+      record_hash: "a1b2c3d4e5f6a7b8…"
+    },
+    {
+      token: "b24044f4-d07a-4a94-82a4-69ad215924a1",
+      ip: "192.168.1.15",
+      user_agent: "Mozilla/5.0 Microsoft Excel/16.0",
+      received_at: new Date(Date.now() - 900000).toISOString(),
+      chain_seq: 2,
+      record_hash: "f6e5d4c3b2a1c0d9…"
+    }
+  ],
+  evidenceVerify: {
+    token: "b24044f4-d07a-4a94-82a4-69ad215924a1",
+    ok: true,
+    checked: 2,
+    broken_at: null,
+    reason: null
+  }
 }
 
 if (process.env.NODE_ENV !== "production") {

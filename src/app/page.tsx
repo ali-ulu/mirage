@@ -19,12 +19,14 @@ import { KpiCard } from '@/components/mirage/kpi-card'
 import { AttackerTable } from '@/components/mirage/attacker-table'
 import { BeaconFeed } from '@/components/mirage/beacon-feed'
 import { TriagePanel } from '@/components/mirage/triage-panel'
+import { EvidencePanel } from '@/components/mirage/evidence-panel'
 import Link from 'next/link'
 import {
   useMirageStats,
   useMirageAttackers,
   useMirageBeacons,
   useMirageTriage,
+  useMirageEvidence,
   useMirageRealtime,
 } from '@/lib/mirage/supabase-client'
 import { relativeTime } from '@/lib/mirage/types'
@@ -34,6 +36,15 @@ export default function Home() {
   const { attackers, loading: attackersLoading, error: attackersError } = useMirageAttackers(100)
   const { beacons, loading: beaconsLoading, error: beaconsError } = useMirageBeacons(50)
   const { triage, loading: triageLoading, error: triageError } = useMirageTriage(25)
+
+  // Kanıt zinciri bir token'a bağlıdır: en güncel beacon'ın token'ı seçilir.
+  const latestToken = beacons[0]?.token ?? null
+  const {
+    records: evidenceRecords,
+    verification,
+    loading: evidenceLoading,
+    error: evidenceError,
+  } = useMirageEvidence(latestToken)
 
   // Realtime status indicator
   const { status: rtStatus } = useMirageRealtime({
@@ -150,6 +161,14 @@ export default function Home() {
               </span>
             </div>
             <AttackerTable attackers={attackers} />
+            {latestToken && (
+              <EvidencePanel
+                records={evidenceRecords}
+                verification={verification}
+                loading={evidenceLoading}
+                error={evidenceError}
+              />
+            )}
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
