@@ -17,6 +17,7 @@ import type {
   BeaconTriage,
   EvidenceChainRecord,
   EvidenceVerifyResult,
+  PromptCanary,
   TriggeredBeacon,
   DashboardStats,
 } from './types'
@@ -321,6 +322,58 @@ export interface UseMirageTriageResult {
   loading: boolean
   error: Error | null
   refresh: () => void
+}
+
+// =============================================================================
+// Prompt canary list hook — ajan bağlamına gömülen işaretler
+// =============================================================================
+export interface UseMirageCanariesResult {
+  canaries: PromptCanary[]
+  loading: boolean
+  error: Error | null
+  refresh: () => void
+}
+
+/**
+ * Prompt-layer canary'leri okur.
+ *
+ * Bunlar ajanın sistem prompt'una / RAG dokümanına / hafızasına gömülen
+ * yüksek entropili işaretlerdir. Aynı işaret başka bir yerde görünürse
+ * bağlam sızmış demektir.
+ *
+ * `marker` alanı sunucuda maskelenmez ama PANEL kısaltarak gösterir —
+ * tam işaret ekranda görünürse, ekranı gören kişi kendi canary'sini
+ * kullanabilir. Bu yüzden `canaryMarkerShort()` kullanılır.
+ */
+export function useMirageCanaries(limit = 50): UseMirageCanariesResult {
+  const [canaries, setCanaries] = useState<PromptCanary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), [])
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchCanaries = async () => {
+      try {
+        setLoading(true)
+        const data = await fetchMirageApi<PromptCanary[]>('canaries', { limit })
+        if (cancelled) return
+        setCanaries(data)
+        setError(null)
+      } catch (err) {
+        if (!cancelled) setError(err as Error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    fetchCanaries()
+    return () => { cancelled = true }
+  }, [limit, refreshKey])
+
+  return { canaries, loading, error, refresh }
 }
 
 // =============================================================================

@@ -74,6 +74,21 @@ vi.mock('@/lib/mirage/supabase-client', () => ({
     error: null,
     refresh: vi.fn(),
   })),
+  useMirageCanaries: vi.fn(() => ({
+    canaries: [
+      {
+        id: 'c1',
+        token: '550e8400-e29b-41d4-a716-446655440000',
+        marker: '[[MIRAGE-CANARY:550e8400-e29b-41d4-a716-446655440000]]',
+        context: 'system_prompt' as const,
+        label: 'destek-botu',
+        created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      },
+    ],
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+  })),
   useMirageEvidence: vi.fn(() => ({
     records: [
       {
@@ -166,6 +181,14 @@ describe('MIRAGE Dashboard Home', () => {
       expect(screen.getByTestId('triage-panel')).toBeInTheDocument()
     })
     expect(screen.getByTestId('triage-panel').textContent).toMatch(/AI Triyaj/i)
+  })
+
+  it('CanaryPanel render edilir (prompt canary görünür)', async () => {
+    render(<Home />)
+    await waitFor(() => {
+      expect(screen.getByTestId('canary-panel')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('canary-panel').textContent).toMatch(/Prompt Canary/i)
   })
 
   it('EvidencePanel render edilir (kanıt zinciri doğrulanır)', async () => {

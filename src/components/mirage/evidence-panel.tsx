@@ -37,6 +37,7 @@ export function EvidencePanel({
     return (
       <div
         data-testid="evidence-panel"
+        data-state="error"
         className={cn(
           'border-2 border-black rounded-none bg-red-100 p-6 font-mono text-sm',
           'shadow-[6px_6px_0_0_#000]',

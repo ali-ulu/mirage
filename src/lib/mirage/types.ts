@@ -46,6 +46,16 @@ export interface DashboardStats {
  * aynı güvenilirlikte değildir.
  */
 /**
+ * Beacon triyaj kaydı — AI/agent katmanının ürettiği değerlendirme.
+ *
+ * Kaynak: `public.beacon_triage` tablosu (migration 0004). Bu tablo
+ * append-only'dir: kayıt üretildikten sonra değiştirilemez/silinemez.
+ * `source` alanı değerlendirmeyi kimin ürettiğini açıkça söyler
+ * ("llm:openai" | "llm:anthropic" | "heuristic") — dashboard'da bu
+ * ayrım kullanıcıya gösterilir, çünkü heuristic ile LLM triyajı
+ * aynı güvenilirlikte değildir.
+ */
+/**
  * Kanıt zinciri kaydı — `triggered_beacons` tablosunun kanıt alanları.
  *
  * `record_hash` bir önceki kaydın hash'ini, `hmac` ise imzayı taşır.
@@ -72,6 +82,58 @@ export interface EvidenceVerifyResult {
 
 export type TriageSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type TriageAction = 'ignore' | 'monitor' | 'investigate' | 'escalate'
+
+/** Prompt canary'nin gömüldüğü bağlam — Python `ck_prompt_canary_context` ile aynı. */
+export type CanaryContext = 'system_prompt' | 'rag_document' | 'agent_memory'
+
+/**
+ * Prompt-layer canary — `public.prompt_canaries` tablosu (migration 0005).
+ *
+ * Bir AI ajanının bağlamına gömülen yüksek entropili işaret. Aynı işaret
+ * başka bir yerde görünürse bağlam sızmıştır. Tablo append-only'dir ve
+ * restart dayanıklılığı için kalıcıdır (bellekte tutulsaydı sıfırlanırdı).
+ *
+ * `marker` alanı `[[MIRAGE-CANARY:<token>]]` biçimindedir ve frontend'de
+ * **kısaltılarak** gösterilir: tam işaret ekranda görünürse, ekranı gören
+ * kişi kendi canary'sini kullanabilir.
+ */
+export interface PromptCanary {
+  id: string
+  token: string
+  marker: string
+  context: CanaryContext
+  label: string
+  created_at: string // ISO8601
+}
+
+/** Canary'nin gömüldüğü bağlamı Türkçeye çevirir. */
+export function canaryContextLabel(context: string): string {
+  switch (context) {
+    case 'system_prompt':
+      return 'Sistem Prompt'
+    case 'rag_document':
+      return 'RAG Doküman'
+    case 'agent_memory':
+      return 'Ajan Hafızası'
+    default:
+      return context
+  }
+}
+
+/**
+ * Canary işaretini ekranda gösterilecek kısa biçime çevirir.
+ *
+ * `[[MIRAGE-CANARY:550e8400-...]]` → `MIRAGE-CANARY:550e8400…`
+ * Tam işaret göstermek, işareti olan kişiye kendi işaretini
+ * tanımlama imkânı verir — bu yüzden kısaltılır.
+ */
+export function canaryMarkerShort(marker: string): string {
+  if (!marker) return '—'
+  const inner = marker.replace(/^\[\[/, '').replace(/\]\]$/, '')
+  const [prefix, tokenPart] = inner.split(':')
+  if (!tokenPart) return inner
+  return `${prefix}:${tokenPart.slice(0, 8)}…`
+}
 
 export interface BeaconTriage {
   id: string
