@@ -70,7 +70,8 @@ jobs:
             scripts/mirage-edge/tests/test_team_id_migration.py \
             scripts/mirage-edge/tests/test_team_rls_migration.py \
             scripts/test_team_rls_live.py \
-            scripts/test_apply_migrations_live.py
+            scripts/test_apply_migrations_live.py \
+            scripts/test_e2e_evidence.py
 
       - name: Red-team scan (prompt injection gate)
         run: |
