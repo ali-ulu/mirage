@@ -259,3 +259,4 @@ Refer to:
 - `AGENTS.md` — project rules and architecture boundaries
 - `DEPLOYMENT.md` — setup and production runbook
 - `docs/PRODUCTION_BOUNDARY.md` — fail-closed production boundaries
+- `docs/MIRAGE_V2_V3_UPGRADE_NOTES.md` — V2 closure targets and V3 backlog

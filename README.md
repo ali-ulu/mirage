@@ -166,12 +166,46 @@ deno test --no-check --allow-net --allow-env --allow-read \
 
 ## Mimari Kısaca
 
+**Katman 1 — Deception (veri yüzeyi):**
 ```
-scripts/mirage/           # Python FastAPI motoru (33 HTTP endpoint)
-  api/routes/             # Modüler router'lar: mcp, rag, deception, behavior, evidence, dlp
-  agent/                  # Canary, Guard, Runtime scan, Planner Agent
-scripts/mirage-edge/      # Supabase Edge Function (beacon-receiver) + SQL migrations
+scripts/mirage/           # Python FastAPI motoru
+  synthesizer.py          #   sentetik veri üretimi
+  honeytoken.py           #   pasif XLSX beacon enjeksiyonu
+  honeypot.py             #   dinamik LLM honeypot
+  evidence.py, merkle_anchor.py   #   kanıt zinciri + zaman damgası
+mirage_cli.py             # CLI: decoy üretimi
+```
+
+**Katman 2 — AI/Agent savunma yüzeyi (pivot):**
+```
+scripts/mirage/agent/     # prompt canary, AgentGuard, runtime scan, planner
+  guard.py                #   inline guard (fail-closed, upstream'e gitmeden bloklar)
+  prompt_canary.py        #   ajan bağlamına yüksek entropili işaret
+  outbound.py             #   giden (upstream) tarama + triyaj sink
+scripts/mirage/api/routes/
+  mcp.py                  #   MCP gateway: politika, sunucu risk puanı, denetim
+  rag.py                  #   zehirli RAG / veri kaynağı guard
+  deception.py            #   LLM ile sentetik persona + canary
+  behavior.py             #   ajan davranış analitiği, saldırgan niyeti
+  dlp.py                  #   regex ötesi DLP (checksum + entropi + gazetteer)
+  evidence.py             #   kanıt proof/anchor/verify
+```
+Uçlar (token korumalı): `/agent/plan`, `/agent/anonymize`, `/agent/canary`,
+`/agent/canary/check`, `/agent/scan`, `/agent/proxy`, `/honeypot/session`,
+`/beacon/triage`, `/beacon/evidence/{token}/verify`, `/siem/export/{token}`,
+`/mcp/evaluate`, `/mcp/audit`, `/rag/inspect`, `/behavior/analyze`,
+`/deception/playbook`, `/dlp/scan`.
+
+> **Durum notu:** AI/agent savunma katmanı Python API'de uçtan uca hazır ve
+> testli (bkz. `docs/PAZAR_ANALIZI_VE_AI_PIVOT.md` §5). Ancak **Next.js
+> dashboard bu uçlara bağlı değil** — arayüz hâlâ yalnızca beacon/attacker/
+> honeytoken tablolarını okuyor. Yani pivot'un görünür yüzeyi (UI) henüz
+> yapılmadı; ürünün AI katmanı şu an API seviyesinde çalışıyor.
+
+**Katman 3 — Arayüz ve dağıtım:**
+```
 src/                      # Next.js 16 dashboard (React 19, Tailwind 4, shadcn/ui)
+scripts/mirage-edge/      # Supabase Edge Function (beacon-receiver) + SQL migrations
 docker-compose.prod.yml   # API + Web + Postgres (local prod benzeri)
 ```
 
