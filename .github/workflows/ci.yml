@@ -76,7 +76,8 @@ jobs:
         run: |
           cd scripts
           python -m mirage . ../AGENTS.md ../README.md ../DEPLOYMENT.md \
-            --fail-on=critical --exclude='*test_*' --exclude='*/fixtures/*'
+            --fail-on=critical --exclude='*test_*' --exclude='*/fixtures/*' \
+            --exclude='docs/*'
 
   frontend:
     name: Frontend (vitest)

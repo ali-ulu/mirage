@@ -149,7 +149,7 @@ python -m mirage . ../AGENTS.md ../README.md ../DEPLOYMENT.md --fail-on=critical
 
 Frontend:
 ```bash
-npm install --legacy-peer-deps
+npm ci
 npm run lint
 npm run build
 npm run test
@@ -171,7 +171,7 @@ scripts/mirage/           # Python FastAPI motoru (33 HTTP endpoint)
   api/routes/             # Modüler router'lar: mcp, rag, deception, behavior, evidence, dlp
   agent/                  # Canary, Guard, Runtime scan, Planner Agent
 scripts/mirage-edge/      # Supabase Edge Function (beacon-receiver) + SQL migrations
-src/                      # Next.js 15 dashboard (React 19, Tailwind 4, shadcn/ui)
+src/                      # Next.js 16 dashboard (React 19, Tailwind 4, shadcn/ui)
 docker-compose.prod.yml   # API + Web + Postgres (local prod benzeri)
 ```
 
@@ -183,7 +183,7 @@ docker-compose.prod.yml   # API + Web + Postgres (local prod benzeri)
 - Beacon receiver yasak makine verilerini (`process_info`, `mac_address`, `local_files`, shell output, screenshot, clipboard, keylog, credential) **reddeder**.
 - Dashboard sunucu taraflı `/api` proxy'si ile okur; RLS anon'a kapalı kalabilir.
 - `SUPABASE_SERVICE_ROLE_KEY` **asla** client bundle'ına gitmez.
-- ⚠️ **Secret rotation prosedürü:** `SECURITY_INCIDENT_RESPONSE_20260715.md` — geciktirmeyin.
+- ⚠️ **Secret rotation prosedürü:** `docs/SECURITY_INCIDENT_RESPONSE_20260715.md` — geciktirmeyin.
 
 ---
 
@@ -191,6 +191,6 @@ docker-compose.prod.yml   # API + Web + Postgres (local prod benzeri)
 
 - `AGENTS.md` — proje kuralları, mimari sınırlar, test komutları
 - `DEPLOYMENT.md` — 30 dk'lık production runbook
-- `BEACON_RECEIVER_BOUNDARY.md` — canonical vs demo receiver ayrımı
+- `docs/BEACON_RECEIVER_BOUNDARY.md` — canonical vs demo receiver ayrımı
 - `docs/SECRET_ROTATION_CHECKLIST.md`
 - `docs/PRODUCTION_BOUNDARY.md`
