@@ -14,6 +14,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   Attacker,
+  BeaconTriage,
   TriggeredBeacon,
   DashboardStats,
 } from './types'
@@ -308,4 +309,45 @@ export function useMirageBeacons(limit = 50): UseMirageBeaconsResult {
   }, [limit, refreshKey, rtStatus])
 
   return { beacons, loading, error, refresh }
+}
+
+// =============================================================================
+// Triage list hook — AI/agent katmanının ürettiği değerlendirmeler
+// =============================================================================
+export interface UseMirageTriageResult {
+  triage: BeaconTriage[]
+  loading: boolean
+  error: Error | null
+  refresh: () => void
+}
+
+export function useMirageTriage(limit = 25): UseMirageTriageResult {
+  const [triage, setTriage] = useState<BeaconTriage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), [])
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchTriage = async () => {
+      try {
+        setLoading(true)
+        const data = await fetchMirageApi<BeaconTriage[]>('triage', { limit })
+        if (cancelled) return
+        setTriage(data)
+        setError(null)
+      } catch (err) {
+        if (!cancelled) setError(err as Error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    fetchTriage()
+    return () => { cancelled = true }
+  }, [limit, refreshKey])
+
+  return { triage, loading, error, refresh }
 }

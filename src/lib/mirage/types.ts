@@ -32,6 +32,47 @@ export interface DashboardStats {
   active_tokens: number
   last_attacker_ip: string | null
   last_beacon_at: string | null
+  critical_triages?: number
+}
+
+/**
+ * Beacon triyaj kaydı — AI/agent katmanının ürettiği değerlendirme.
+ *
+ * Kaynak: `public.beacon_triage` tablosu (migration 0004). Bu tablo
+ * append-only'dir: kayıt üretildikten sonra değiştirilemez/silinemez.
+ * `source` alanı değerlendirmeyi kimin ürettiğini açıkça söyler
+ * ("llm:openai" | "llm:anthropic" | "heuristic") — dashboard'da bu
+ * ayrım kullanıcıya gösterilir, çünkü heuristic ile LLM triyajı
+ * aynı güvenilirlikte değildir.
+ */
+export type TriageSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type TriageAction = 'ignore' | 'monitor' | 'investigate' | 'escalate'
+
+export interface BeaconTriage {
+  id: string
+  token: string
+  chain_seq: number | null
+  severity: TriageSeverity
+  confidence: number
+  rationale: string
+  recommended_action: TriageAction
+  source: string
+  chain_verified: boolean | null
+  model: string | null
+  created_at: string // ISO8601
+}
+
+/**
+ * Triyaj kaydının LLM mi heuristic mi ürettiğini söyler.
+ * LLM kayıtlarında model adı varsa onu da döndürür.
+ */
+export function triageSourceLabel(source: string): string {
+  if (source.startsWith('llm:')) {
+    const provider = source.slice(4)
+    return provider === 'openai' ? 'LLM · OpenAI' : `LLM · ${provider}`
+  }
+  if (source === 'heuristic') return 'Kural tabanlı'
+  return source
 }
 
 /**

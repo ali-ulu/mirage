@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Attacker, DashboardStats, TriggeredBeacon } from '@/lib/mirage/types'
+import type { Attacker, BeaconTriage, DashboardStats, TriggeredBeacon } from '@/lib/mirage/types'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { mockDb } from '@/lib/mirage/mock-db'
 import { isProductionRuntime } from '@/lib/mirage/runtime'
 
 export const dynamic = 'force-dynamic'
 
-type MirageResource = 'stats' | 'attackers' | 'beacons' | 'honeytokens'
+type MirageResource = 'stats' | 'attackers' | 'beacons' | 'honeytokens' | 'triage'
 
 type HoneytokenRow = {
   token: string
@@ -49,7 +49,8 @@ function parseResource(req: NextRequest): MirageResource | null {
     resource === 'stats' ||
     resource === 'attackers' ||
     resource === 'beacons' ||
-    resource === 'honeytokens'
+    resource === 'honeytokens' ||
+    resource === 'triage'
   ) {
     return resource
   }
@@ -147,10 +148,23 @@ async function getHoneytokens(client: SupabaseClient, limit: number): Promise<Ho
   return (data || []) as HoneytokenRow[]
 }
 
+async function getTriage(client: SupabaseClient, limit: number): Promise<BeaconTriage[]> {
+  const { data, error } = await client
+    .from('beacon_triage')
+    .select(
+      'id, token, chain_seq, severity, confidence, rationale, recommended_action, source, chain_verified, model, created_at'
+    )
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return (data || []) as BeaconTriage[]
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const resource = parseResource(req)
   if (!resource) {
-    return json<ApiError>({ error: 'resource must be one of stats, attackers, beacons, honeytokens' }, 400)
+    return json<ApiError>({ error: 'resource must be one of stats, attackers, beacons, honeytokens, triage' }, 400)
   }
 
   const authClient = await createSupabaseServerClient()
@@ -184,6 +198,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
       if (resource === 'attackers') return json(mockDb.attackers)
       if (resource === 'beacons') return json(mockDb.beacons)
+      if (resource === 'triage') return json(mockDb.triage)
       return json(mockDb.honeytokens)
     } catch (err) {
       return json<ApiError>({ error: 'Mock query failed', detail: err instanceof Error ? err.message : 'Unknown' }, 500)
@@ -210,6 +225,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (resource === 'stats') return json(await getStats(client))
     if (resource === 'attackers') return json(await getAttackers(client, parseLimit(req, 100, 500)))
     if (resource === 'beacons') return json(await getBeacons(client, parseLimit(req, 50, 500)))
+    if (resource === 'triage') return json(await getTriage(client, parseLimit(req, 25, 100)))
     return json(await getHoneytokens(client, parseLimit(req, 100, 500)))
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unexpected Supabase query error'
