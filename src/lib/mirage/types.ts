@@ -45,6 +45,31 @@ export interface DashboardStats {
  * ayrım kullanıcıya gösterilir, çünkü heuristic ile LLM triyajı
  * aynı güvenilirlikte değildir.
  */
+/**
+ * Kanıt zinciri kaydı — `triggered_beacons` tablosunun kanıt alanları.
+ *
+ * `record_hash` bir önceki kaydın hash'ini, `hmac` ise imzayı taşır.
+ * Doğrulama sunucu tarafında yapılır; `hmac` alanı frontend'e sadece
+ * "imzalı mı" bilgisi olarak özetlenir.
+ */
+export interface EvidenceChainRecord {
+  token: string
+  ip: string | null
+  user_agent: string | null
+  received_at: string
+  chain_seq: number
+  record_hash: string | null
+}
+
+/** Zincir doğrulama sonucu — Python `/beacon/evidence/{token}/verify` sözleşmesi. */
+export interface EvidenceVerifyResult {
+  token: string
+  ok: boolean
+  checked: number
+  broken_at: number | null
+  reason: string | null
+}
+
 export type TriageSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type TriageAction = 'ignore' | 'monitor' | 'investigate' | 'escalate'
 

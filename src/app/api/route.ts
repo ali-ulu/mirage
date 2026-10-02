@@ -1,13 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Attacker, BeaconTriage, DashboardStats, TriggeredBeacon } from '@/lib/mirage/types'
+import type {
+  Attacker,
+  BeaconTriage,
+  DashboardStats,
+  EvidenceChainRecord,
+  EvidenceVerifyResult,
+  TriggeredBeacon,
+} from '@/lib/mirage/types'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { mockDb } from '@/lib/mirage/mock-db'
 import { isProductionRuntime } from '@/lib/mirage/runtime'
+import { createHash, createHmac, timingSafeEqual } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
-type MirageResource = 'stats' | 'attackers' | 'beacons' | 'honeytokens' | 'triage'
+type MirageResource =
+  | 'stats'
+  | 'attackers'
+  | 'beacons'
+  | 'honeytokens'
+  | 'triage'
+  | 'evidence'
+  | 'evidenceVerify'
 
 type HoneytokenRow = {
   token: string
@@ -50,7 +65,9 @@ function parseResource(req: NextRequest): MirageResource | null {
     resource === 'attackers' ||
     resource === 'beacons' ||
     resource === 'honeytokens' ||
-    resource === 'triage'
+    resource === 'triage' ||
+    resource === 'evidence' ||
+    resource === 'evidenceVerify'
   ) {
     return resource
   }
@@ -161,6 +178,181 @@ async function getTriage(client: SupabaseClient, limit: number): Promise<BeaconT
   return (data || []) as BeaconTriage[]
 }
 
+/**
+ * Sunucu tarafında okunan tam kanıt kaydı. `hmac` ve `prev_hash` yalnızca
+ * doğrulama için kullanılır ve frontend'e asla gönderilmez.
+ */
+type EvidenceRow = EvidenceChainRecord & {
+  prev_hash: string | null
+  hmac: string | null
+}
+
+/**
+ * Kanıt zinciri kayıtlarını `chain_seq` sırasıyla okur.
+ *
+ * `hmac` ve `prev_hash` frontend'e GÖNDERİLMEZ. İmza ve önceki hash
+ * değerleri sızsaydı saldırgan zincirin içeriğini taklit edebilirdi.
+ */
+async function getEvidenceChain(
+  client: SupabaseClient,
+  token: string
+): Promise<EvidenceChainRecord[]> {
+  const { data, error } = await client
+    .from('triggered_beacons')
+    .select('token, ip, user_agent, received_at, chain_seq, record_hash')
+    .eq('token', token)
+    .order('chain_seq', { ascending: true })
+
+  if (error) throw error
+  return (data || []) as EvidenceChainRecord[]
+}
+
+// ---------------------------------------------------------------------------
+// Kanonik hash — Python `mirage/evidence.py` ile BİREBİR aynı olmalı.
+// Farklılık, sahte "kurcalama" uyarısı üretir. Parite zorunlu.
+// ---------------------------------------------------------------------------
+
+/** Zincirin ilk kaydının `prev_hash` değeri. Python: GENESIS_HASH = "0" * 64 */
+const GENESIS_HASH = '0'.repeat(64)
+
+/** İmzalanan alanlar, Python EVIDENCE_FIELDS ile aynı sırada. */
+const EVIDENCE_FIELDS = ['token', 'ip', 'user_agent', 'received_at', 'chain_seq', 'prev_hash'] as const
+
+/**
+ * Timestamp'i kanonik UTC ISO-8601'e çevirir: milisaniye + `Z` son eki.
+ * Python `normalize_timestamp` ile aynı mantık. Gerekçe: Postgres
+ * `...000Z` değeri `...+00:00` olarak geri döner; normalize edilmezse
+ * hash eşleşmez ve doğrulama yanlışlıkla "kurcalandı" der.
+ */
+export function normalizeTimestamp(value: string): string {
+  const iso = value.endsWith('Z') ? `${value.slice(0, -1)}+00:00` : value
+  const dt = new Date(iso)
+  if (Number.isNaN(dt.getTime())) return value
+  return `${dt.toISOString().slice(0, 23)}Z`
+}
+
+/**
+ * Kanonik JSON: yalnızca imzalanan alanlar, anahtarlar sıralı, boşluksuz.
+ * Python `json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False)`
+ * ile aynı bayt dizisini üretmelidir.
+ */
+function canonicalJson(record: EvidenceRow): string {
+  const subset: Record<string, unknown> = {
+    token: record.token ?? null,
+    ip: record.ip ?? null,
+    user_agent: record.user_agent ?? null,
+    received_at:
+      record.received_at != null ? normalizeTimestamp(String(record.received_at)) : null,
+    chain_seq: record.chain_seq ?? null,
+    prev_hash: record.prev_hash ?? null,
+  }
+
+  return JSON.stringify(subset, Object.keys(subset).sort())
+}
+
+function sha256Hex(input: string): string {
+  return createHash('sha256').update(input, 'utf8').digest('hex')
+}
+
+/**
+ * Bir token'ın kanıt zincirini sunucu tarafında doğrular.
+ *
+ * Python `verify_chain` ile aynı üç kontrolü yapar:
+ *   1. record_hash alanlardan yeniden hesaplanabilir mi?  (kurcalama)
+ *   2. prev_hash bir önceki kaydın record_hash'ine bağlı mı? (kopukluk)
+ *   3. hmac, kayıtlı record_hash için geçerli mi?          (sahte kayıt)
+ *
+ * Güvenlik: `MIRAGE_EVIDENCE_HMAC_KEY` yalnızca burada okunur ve asla
+ * response'a girmez. Anahtar yoksa FAIL-CLOSED: "doğrulandı" denmez,
+ * "doğrulanamadı" döner — Python ile aynı semantik.
+ */
+async function verifyEvidenceChain(
+  client: SupabaseClient,
+  token: string
+): Promise<EvidenceVerifyResult> {
+  const key = process.env.MIRAGE_EVIDENCE_HMAC_KEY
+
+  if (!key) {
+    return {
+      token,
+      ok: false,
+      checked: 0,
+      broken_at: null,
+      reason: 'signing key unavailable',
+    }
+  }
+
+  const { data, error } = await client
+    .from('triggered_beacons')
+    .select('token, ip, user_agent, received_at, chain_seq, prev_hash, record_hash, hmac')
+    .eq('token', token)
+    .order('chain_seq', { ascending: true })
+
+  if (error) throw error
+
+  const rows = (data || []) as EvidenceRow[]
+
+  if (rows.length === 0) {
+    return {
+      token,
+      ok: false,
+      checked: 0,
+      broken_at: null,
+      reason: 'no evidence records for token',
+    }
+  }
+
+  const ordered = [...rows].sort((a, b) => Number(a.chain_seq) - Number(b.chain_seq))
+
+  let prev = GENESIS_HASH
+  let checked = 0
+
+  for (const r of ordered) {
+    checked += 1
+
+    const expectedHash = sha256Hex(canonicalJson(r))
+    if (expectedHash !== r.record_hash) {
+      return {
+        token,
+        ok: false,
+        checked,
+        broken_at: Number(r.chain_seq),
+        reason: 'record_hash mismatch (record was modified)',
+      }
+    }
+
+    if ((r.prev_hash ?? null) !== prev) {
+      return {
+        token,
+        ok: false,
+        checked,
+        broken_at: Number(r.chain_seq),
+        reason: 'prev_hash does not link to previous record',
+      }
+    }
+
+    const expectedHmac = createHmac('sha256', key)
+      .update(String(r.record_hash), 'utf8')
+      .digest('hex')
+
+    const a = Buffer.from(expectedHmac)
+    const b = Buffer.from(String(r.hmac ?? ''))
+    if (b.length === 0 || a.length !== b.length || !timingSafeEqual(a, b)) {
+      return {
+        token,
+        ok: false,
+        checked,
+        broken_at: Number(r.chain_seq),
+        reason: 'hmac verification failed',
+      }
+    }
+
+    prev = String(r.record_hash)
+  }
+
+  return { token, ok: true, checked, broken_at: null, reason: null }
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const resource = parseResource(req)
   if (!resource) {
@@ -199,6 +391,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (resource === 'attackers') return json(mockDb.attackers)
       if (resource === 'beacons') return json(mockDb.beacons)
       if (resource === 'triage') return json(mockDb.triage)
+      if (resource === 'evidence') return json(mockDb.evidence)
+      if (resource === 'evidenceVerify') return json(mockDb.evidenceVerify)
       return json(mockDb.honeytokens)
     } catch (err) {
       return json<ApiError>({ error: 'Mock query failed', detail: err instanceof Error ? err.message : 'Unknown' }, 500)
@@ -222,6 +416,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    if (resource === 'evidence' || resource === 'evidenceVerify') {
+      const token = req.nextUrl.searchParams.get('token')
+      if (!token) {
+        return json<ApiError>({ error: 'token query parameter is required' }, 400)
+      }
+      if (resource === 'evidence') {
+        return json(await getEvidenceChain(client, token))
+      }
+      return json(await verifyEvidenceChain(client, token))
+    }
     if (resource === 'stats') return json(await getStats(client))
     if (resource === 'attackers') return json(await getAttackers(client, parseLimit(req, 100, 500)))
     if (resource === 'beacons') return json(await getBeacons(client, parseLimit(req, 50, 500)))

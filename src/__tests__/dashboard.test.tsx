@@ -74,6 +74,28 @@ vi.mock('@/lib/mirage/supabase-client', () => ({
     error: null,
     refresh: vi.fn(),
   })),
+  useMirageEvidence: vi.fn(() => ({
+    records: [
+      {
+        token: '550e8400-e29b-41d4-a716-446655440000',
+        ip: '203.0.113.42',
+        user_agent: 'LibreOffice/7.5',
+        received_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        chain_seq: 1,
+        record_hash: 'a1b2c3d4',
+      },
+    ],
+    verification: {
+      token: '550e8400-e29b-41d4-a716-446655440000',
+      ok: true,
+      checked: 1,
+      broken_at: null,
+      reason: null,
+    },
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+  })),
   useMirageRealtime: vi.fn(() => ({
     status: 'connected' as const,
     lastEvent: null,
@@ -144,6 +166,14 @@ describe('MIRAGE Dashboard Home', () => {
       expect(screen.getByTestId('triage-panel')).toBeInTheDocument()
     })
     expect(screen.getByTestId('triage-panel').textContent).toMatch(/AI Triyaj/i)
+  })
+
+  it('EvidencePanel render edilir (kanıt zinciri doğrulanır)', async () => {
+    render(<Home />)
+    await waitFor(() => {
+      expect(screen.getByTestId('evidence-panel')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('evidence-verdict').textContent).toMatch(/DOĞRULANDI/i)
   })
 
   it('real-time status indicator gösterir (LIVE)', async () => {
