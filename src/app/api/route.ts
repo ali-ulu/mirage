@@ -4,6 +4,7 @@ import type {
   Attacker,
   BeaconTriage,
   DashboardStats,
+  McpAuditResponse,
   PromptCanary,
   EvidenceChainRecord,
   EvidenceVerifyResult,
@@ -23,6 +24,7 @@ type MirageResource =
   | 'honeytokens'
   | 'triage'
   | 'canaries'
+  | 'mcpAudit'
   | 'evidence'
   | 'evidenceVerify'
 
@@ -69,6 +71,7 @@ function parseResource(req: NextRequest): MirageResource | null {
     resource === 'honeytokens' ||
     resource === 'triage' ||
     resource === 'canaries' ||
+    resource === 'mcpAudit' ||
     resource === 'evidence' ||
     resource === 'evidenceVerify'
   ) {
@@ -196,6 +199,53 @@ type EvidenceRow = EvidenceChainRecord & {
  * `hmac` ve `prev_hash` frontend'e GÖNDERİLMEZ. İmza ve önceki hash
  * değerleri sızsaydı saldırgan zincirin içeriğini taklit edebilirdi.
  */
+/**
+ * MCP denetim özetini Python API'den çeker.
+ *
+ * Bu endpoint diğerlerinden farklı: MCP denetim günlüğü Python sürecinin
+ * belleğinde tutulur, Supabase tablosu yoktur. Bu yüzden Next sunucusu
+ * Python API'ye SUNUCU TARAFINDA istek atar.
+ *
+ * Güvenlik: `MIRAGE_API_TOKEN` yalnızca bu fonksiyonda okunur ve tarayıcıya
+ * dönmez. İstek `Authorization: Bearer` ile gider.
+ *
+ * Yapılandırılmamışsa veya API erişilemezse `null` döner; panel bunu
+ * "bağlantı yok" olarak gösterir ve diğer paneller etkilenmez. Ürünün
+ * kanıt zinciri fail-closed davranışı burada gevşetilmez — sadece MCP
+ * denetimi opsiyonel bir görünüm.
+ */
+async function getMcpAudit(): Promise<McpAuditResponse | null> {
+  const baseUrl = process.env.MIRAGE_API_BASE_URL
+  const token = process.env.MIRAGE_API_TOKEN
+
+  if (!baseUrl || !token) return null
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+
+  try {
+    // Kalıcı defter (`mcp_audit` tablosu). `/mcp/audit` bellekteki özettir
+    // ve restart'ta sıfırlanır — dashboard kalıcı kaydı okumalı.
+    const res = await fetch(
+      `${baseUrl.replace(/\/$/, '')}/mcp/audit/log?limit=25`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+        signal: controller.signal,
+      }
+    )
+
+    if (!res.ok) return null
+    return (await res.json()) as McpAuditResponse
+  } catch {
+    // Ağ hatası / zaman aşımı / API kapalı — panel bunu "bağlantı yok"
+    // olarak gösterir. Diğer paneller etkilenmez.
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 /**
  * Prompt canary'lerini okur.
  *
@@ -416,6 +466,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       if (resource === 'beacons') return json(mockDb.beacons)
       if (resource === 'triage') return json(mockDb.triage)
       if (resource === 'canaries') return json(mockDb.canaries)
+      if (resource === 'mcpAudit') return json(mockDb.mcpAudit)
       if (resource === 'evidence') return json(mockDb.evidence)
       if (resource === 'evidenceVerify') return json(mockDb.evidenceVerify)
       return json(mockDb.honeytokens)
@@ -456,6 +507,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (resource === 'beacons') return json(await getBeacons(client, parseLimit(req, 50, 500)))
     if (resource === 'triage') return json(await getTriage(client, parseLimit(req, 25, 100)))
     if (resource === 'canaries') return json(await getCanaries(client, parseLimit(req, 50, 200)))
+    if (resource === 'mcpAudit') return json(await getMcpAudit())
     return json(await getHoneytokens(client, parseLimit(req, 100, 500)))
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unexpected Supabase query error'

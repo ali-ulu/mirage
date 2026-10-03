@@ -20,6 +20,7 @@ import { AttackerTable } from '@/components/mirage/attacker-table'
 import { BeaconFeed } from '@/components/mirage/beacon-feed'
 import { TriagePanel } from '@/components/mirage/triage-panel'
 import { CanaryPanel } from '@/components/mirage/canary-panel'
+import { McpAuditPanel } from '@/components/mirage/mcp-audit-panel'
 import { EvidencePanel } from '@/components/mirage/evidence-panel'
 import Link from 'next/link'
 import {
@@ -28,6 +29,7 @@ import {
   useMirageBeacons,
   useMirageTriage,
   useMirageCanaries,
+  useMirageMcpAudit,
   useMirageEvidence,
   useMirageRealtime,
 } from '@/lib/mirage/supabase-client'
@@ -39,6 +41,12 @@ export default function Home() {
   const { beacons, loading: beaconsLoading, error: beaconsError } = useMirageBeacons(50)
   const { triage, loading: triageLoading, error: triageError } = useMirageTriage(25)
   const { canaries, loading: canariesLoading, error: canariesError } = useMirageCanaries(50)
+  const {
+    audit: mcpAudit,
+    records: mcpRecords,
+    connected: mcpConnected,
+    loading: mcpLoading,
+  } = useMirageMcpAudit()
 
   // Kanıt zinciri bir token'a bağlıdır: en güncel beacon'ın token'ı seçilir.
   const latestToken = beacons[0]?.token ?? null
@@ -195,6 +203,12 @@ export default function Home() {
               canaries={canaries}
               loading={canariesLoading}
               error={canariesError}
+            />
+            <McpAuditPanel
+              audit={mcpAudit}
+              records={mcpRecords}
+              connected={mcpConnected}
+              loading={mcpLoading}
             />
           </div>
         </section>

@@ -162,10 +162,16 @@ class MCPGateway:
         *,
         policy: Optional[MCPPolicy] = None,
         scan_hook: Optional[Callable[[str], None]] = None,
+        audit_sink: Optional[Callable[[dict[str, Any]], None]] = None,
     ):
         self.policy = policy or MCPPolicy()
         self.scan_hook = scan_hook
         self.audit_log: list[dict[str, Any]] = []
+        # Opsiyonel kalıcı denetim yazıcısı (ör. `MCPAuditStore.save`).
+        # `audit_log` bellekte tutulduğu için restart'ta sıfırlanır; ürün
+        # "append-only, değiştirilemez kayıt" dediği için kalıcı denetim
+        # gerekir. Sink verilmezse davranış tam olarak eskisi gibi kalır.
+        self.audit_sink = audit_sink
 
     def evaluate(
         self,
@@ -222,7 +228,7 @@ class MCPGateway:
         decision: GatewayDecision,
         actor: str,
     ) -> None:
-        self.audit_log.append({
+        entry = {
             "ts": datetime.now(timezone.utc).isoformat(),
             "actor": actor,
             "server": server.name,
@@ -231,7 +237,20 @@ class MCPGateway:
             "reason": decision.reason,
             "risk_score": decision.risk.score,
             "risk_level": decision.risk.level,
-        })
+        }
+        self.audit_log.append(entry)
+
+        # Kalıcı denetim (varsa). Yazma hatası kararı DEĞİŞTİRMEZ:
+        # gateway'in görevi çağrıyı engellemek/izin vermek, denetim
+        # yazımı ise kanıt üretmek. İkisi birbirine bağımlı olmamalı —
+        # aksi halde bir veritabanı kesintisi tüm MCP trafiğini düşürürdü.
+        if self.audit_sink is not None:
+            try:
+                self.audit_sink(entry)
+            except Exception:
+                # Denetim yazımı başarısız olursa karar yine de geçerlidir;
+                # sessizce yutulur çünkü burası karar noktası değil.
+                pass
 
     def audit_summary(self) -> dict[str, Any]:
         """Denetim günlüğü özeti (toplam/izinli/engelli + risk dağılımı)."""

@@ -17,6 +17,9 @@ import type {
   BeaconTriage,
   EvidenceChainRecord,
   EvidenceVerifyResult,
+  McpAuditRecord,
+  McpAuditResponse,
+  McpAuditSummary,
   PromptCanary,
   TriggeredBeacon,
   DashboardStats,
@@ -374,6 +377,63 @@ export function useMirageCanaries(limit = 50): UseMirageCanariesResult {
   }, [limit, refreshKey])
 
   return { canaries, loading, error, refresh }
+}
+
+// =============================================================================
+// MCP audit hook — ajan→araç çağrılarının gateway denetimi
+// =============================================================================
+export interface UseMirageMcpAuditResult {
+  audit: McpAuditSummary | null
+  /** Kalıcı denetim kayıtları (yeni→eski). */
+  records: McpAuditRecord[]
+  /** false ise MIRAGE_API_BASE_URL/token yok ya da API erişilemiyor. */
+  connected: boolean
+  loading: boolean
+  refresh: () => void
+}
+
+/**
+ * MCP gateway kalıcı denetim kayıtlarını okur.
+ *
+ * `/mcp/audit` bellekteki özeti döndürür ve restart'ta sıfırlanır; panel
+ * bunu kullanmaz. Burada `/mcp/audit/log` okunur — `mcp_audit` tablosundaki
+ * append-only kayıtlar.
+ *
+ * Bağlantı yoksa `connected=false` döner ve panel bunu açıkça yazar;
+ * sessizce boş liste göstermek "koruma yok" izlenimi üretirdi.
+ */
+export function useMirageMcpAudit(): UseMirageMcpAuditResult {
+  const [audit, setAudit] = useState<McpAuditSummary | null>(null)
+  const [records, setRecords] = useState<McpAuditRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), [])
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchAudit = async () => {
+      try {
+        setLoading(true)
+        const data = await fetchMirageApi<McpAuditResponse | null>('mcpAudit')
+        if (cancelled) return
+        setAudit(data ? data.summary : null)
+        setRecords(data ? data.records : [])
+      } catch {
+        if (!cancelled) {
+          setAudit(null)
+          setRecords([])
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    fetchAudit()
+    return () => { cancelled = true }
+  }, [refreshKey])
+
+  return { audit, records, connected: audit !== null, loading, refresh }
 }
 
 // =============================================================================

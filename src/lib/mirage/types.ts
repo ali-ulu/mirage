@@ -135,6 +135,43 @@ export function canaryMarkerShort(marker: string): string {
   return `${prefix}:${tokenPart.slice(0, 8)}…`
 }
 
+/** MCP sunucu risk seviyesi — migration 0009 `ck_mcp_audit_risk_level` ile aynı. */
+export type McpRiskLevel = 'low' | 'medium' | 'high' | 'critical'
+
+/**
+ * MCP gateway denetim kaydı — `public.mcp_audit` tablosu (migration 0009).
+ *
+ * `allowed=false` gateway'in **fail-closed** kararıdır: çağrı engellendi.
+ * Bu yüzden panelde "denied" değil "ENGELLENDİ" denir — kullanıcıya ne
+ * olduğunu açık söylemek gerekir.
+ */
+export interface McpAuditRecord {
+  id: string
+  occurred_at: string // ISO8601
+  actor: string
+  server: string
+  tool: string
+  allowed: boolean
+  reason: string
+  risk_score: number
+  risk_level: McpRiskLevel
+}
+
+/** Kalıcı denetim özeti — `/mcp/audit/log` yanıtının `summary` alanı. */
+export interface McpAuditSummary {
+  total: number
+  allowed: number
+  denied: number
+  by_risk_level: Partial<Record<McpRiskLevel, number>>
+}
+
+/** `/mcp/audit/log` yanıtının tamamı. */
+export interface McpAuditResponse {
+  count: number
+  summary: McpAuditSummary
+  records: McpAuditRecord[]
+}
+
 export interface BeaconTriage {
   id: string
   token: string

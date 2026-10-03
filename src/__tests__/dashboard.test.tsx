@@ -74,6 +74,30 @@ vi.mock('@/lib/mirage/supabase-client', () => ({
     error: null,
     refresh: vi.fn(),
   })),
+  useMirageMcpAudit: vi.fn(() => ({
+    audit: {
+      total: 128,
+      allowed: 112,
+      denied: 16,
+      by_risk_level: { low: 84, medium: 30, high: 10, critical: 4 },
+    },
+    records: [
+      {
+        id: 'm1',
+        occurred_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        actor: 'test-ajan',
+        server: 'shell',
+        tool: 'exec_command',
+        allowed: false,
+        reason: 'risk eşiği aşıldı',
+        risk_score: 95,
+        risk_level: 'critical' as const,
+      },
+    ],
+    connected: true,
+    loading: false,
+    refresh: vi.fn(),
+  })),
   useMirageCanaries: vi.fn(() => ({
     canaries: [
       {
@@ -189,6 +213,14 @@ describe('MIRAGE Dashboard Home', () => {
       expect(screen.getByTestId('canary-panel')).toBeInTheDocument()
     })
     expect(screen.getByTestId('canary-panel').textContent).toMatch(/Prompt Canary/i)
+  })
+
+  it('McpAuditPanel render edilir (gateway denetimi görünür)', async () => {
+    render(<Home />)
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-panel')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('mcp-panel').textContent).toMatch(/MCP Gateway/i)
   })
 
   it('EvidencePanel render edilir (kanıt zinciri doğrulanır)', async () => {
