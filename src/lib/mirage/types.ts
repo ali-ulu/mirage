@@ -172,6 +172,47 @@ export interface McpAuditResponse {
   records: McpAuditRecord[]
 }
 
+/** RAG guard kararı — `allow | quarantine | reject`. Python `RAGVerdict` ile aynı. */
+export type RagAction = 'allow' | 'quarantine' | 'reject'
+
+/**
+ * Tek bir doküman için RAG guard kararı (`POST /rag/inspect`).
+ *
+ * `sanitized_text` BİLİNÇLİ OLARAK response'a girmiyor: reddedilen
+ * dokümanın metnini taşımak, taranan içeriği ikinci bir kanal üzerinden
+ * yaymak olurdu. Panel yalnızca kararı ve gerekçeleri görür.
+ */
+export interface RagVerdict {
+  source_id: string
+  action: RagAction
+  allowed: boolean
+  severity: TriageSeverity | null
+  findings: { name?: string; severity?: string; detail?: string }[]
+  reasons: string[]
+}
+
+/** `/rag/inspect` yanıtının tamamı. */
+export interface RagInspectResponse {
+  verdicts: RagVerdict[]
+  summary: {
+    total: number
+    allowed: number
+    quarantined: number
+    rejected: number
+  }
+}
+
+const RAG_ACTION_LABELS: Record<RagAction, string> = {
+  allow: 'Kabul edildi',
+  quarantine: 'Karantinaya alındı',
+  reject: 'Reddedildi',
+}
+
+/** RAG kararını Türkçeye çevirir. */
+export function ragActionLabel(action: string): string {
+  return RAG_ACTION_LABELS[action as RagAction] ?? action
+}
+
 export interface BeaconTriage {
   id: string
   token: string

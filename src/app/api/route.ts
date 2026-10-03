@@ -5,6 +5,7 @@ import type {
   BeaconTriage,
   DashboardStats,
   McpAuditResponse,
+  RagInspectResponse,
   PromptCanary,
   EvidenceChainRecord,
   EvidenceVerifyResult,
@@ -25,6 +26,7 @@ type MirageResource =
   | 'triage'
   | 'canaries'
   | 'mcpAudit'
+  | 'ragInspect'
   | 'evidence'
   | 'evidenceVerify'
 
@@ -72,6 +74,7 @@ function parseResource(req: NextRequest): MirageResource | null {
     resource === 'triage' ||
     resource === 'canaries' ||
     resource === 'mcpAudit' ||
+    resource === 'ragInspect' ||
     resource === 'evidence' ||
     resource === 'evidenceVerify'
   ) {
@@ -214,6 +217,52 @@ type EvidenceRow = EvidenceChainRecord & {
  * kanıt zinciri fail-closed davranışı burada gevşetilmez — sadece MCP
  * denetimi opsiyonel bir görünüm.
  */
+/**
+ * RAG guard taraması — Python `POST /rag/inspect`.
+ *
+ * Bu bir GET değil POST işlemi (metin gönderilir), ama tüm fetch'ler
+ * `fetchMirageApi` üzerinden `?resource=` ile gittiği için aynı route'a
+ * POST handler olarak ekleniyor.
+ *
+ * Güvenlik: `MIRAGE_API_TOKEN` yalnızca sunucuda okunur.
+ */
+async function inspectRagDoc(
+  text: string,
+  origin: string
+): Promise<RagInspectResponse | null> {
+  const baseUrl = process.env.MIRAGE_API_BASE_URL
+  const token = process.env.MIRAGE_API_TOKEN
+
+  if (!baseUrl || !token) return null
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/rag/inspect`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        docs: [
+          { source_id: 'panel', text, origin: origin || 'dashboard', trust: 'untrusted' },
+        ],
+      }),
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+
+    if (!res.ok) return null
+    return (await res.json()) as RagInspectResponse
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 async function getMcpAudit(): Promise<McpAuditResponse | null> {
   const baseUrl = process.env.MIRAGE_API_BASE_URL
   const token = process.env.MIRAGE_API_TOKEN
@@ -513,4 +562,66 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const message = err instanceof Error ? err.message : 'Unexpected Supabase query error'
     return json<ApiError>({ error: 'Dashboard query failed', detail: message }, 500)
   }
+}
+
+/**
+ * POST — RAG guard taraması (`?resource=ragInspect`).
+ *
+ * Metni sunucu tarafında Python API'ye gönderir; tarama kararı Python'da
+ * üretilir, frontend yalnızca sonucu gösterir. Böylece politika ve eşikler
+ * tek yerde (env) tanımlı kalır.
+ */
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const resource = parseResource(req)
+  if (resource !== 'ragInspect') {
+    return json<ApiError>({ error: 'POST supports only resource=ragInspect' }, 400)
+  }
+
+  const authClient = await createSupabaseServerClient()
+  if (!authClient) {
+    if (isProductionRuntime()) {
+      return json<ApiError>(
+        {
+          error: 'Supabase auth client not configured',
+          detail: 'Set Supabase URL and publishable key to use the RAG scanner.',
+        },
+        503,
+      )
+    }
+  } else {
+    const { data: claims, error } = await authClient.auth.getClaims()
+    if (error || !claims?.claims) {
+      return json<ApiError>({ error: 'unauthorized', detail: 'Sign in to use the RAG scanner.' }, 401)
+    }
+  }
+
+  let payload: { text?: string; origin?: string }
+  try {
+    payload = await req.json()
+  } catch {
+    return json<ApiError>({ error: 'invalid JSON body' }, 400)
+  }
+
+  const text = (payload.text ?? '').toString()
+  if (!text.trim()) {
+    return json<ApiError>({ error: 'text is required' }, 400)
+  }
+  if (text.length > 100_000) {
+    return json<ApiError>({ error: 'text exceeds 100k characters' }, 413)
+  }
+
+  const result = await inspectRagDoc(text, payload.origin ?? '')
+  if (!result) {
+    return json<ApiError>(
+      {
+        error: 'RAG guard unavailable',
+        detail:
+          'Set MIRAGE_API_BASE_URL and MIRAGE_API_TOKEN, or start the Python API. ' +
+          'This is a connection failure, not an empty result — do not read it as "document is safe".',
+      },
+      503,
+    )
+  }
+
+  return json(result)
 }

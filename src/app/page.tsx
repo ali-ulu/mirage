@@ -21,6 +21,7 @@ import { BeaconFeed } from '@/components/mirage/beacon-feed'
 import { TriagePanel } from '@/components/mirage/triage-panel'
 import { CanaryPanel } from '@/components/mirage/canary-panel'
 import { McpAuditPanel } from '@/components/mirage/mcp-audit-panel'
+import { RagPanel } from '@/components/mirage/rag-panel'
 import { EvidencePanel } from '@/components/mirage/evidence-panel'
 import Link from 'next/link'
 import {
@@ -210,6 +211,7 @@ export default function Home() {
               connected={mcpConnected}
               loading={mcpLoading}
             />
+            <RagPanel />
           </div>
         </section>
 
