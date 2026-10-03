@@ -197,10 +197,11 @@ Uçlar (token korumalı): `/agent/plan`, `/agent/anonymize`, `/agent/canary`,
 `/deception/playbook`, `/dlp/scan`.
 
 > **Durum notu:** AI/agent savunma katmanı Python API'de uçtan uca hazır ve
-> testli (bkz. `docs/PAZAR_ANALIZI_VE_AI_PIVOT.md` §5). Ancak **Next.js
-> dashboard bu uçlara bağlı değil** — arayüz hâlâ yalnızca beacon/attacker/
-> honeytoken tablolarını okuyor. Yani pivot'un görünür yüzeyi (UI) henüz
-> yapılmadı; ürünün AI katmanı şu an API seviyesinde çalışıyor.
+> testli (bkz. `docs/PAZAR_ANALIZI_VE_AI_PIVOT.md` §5). Dashboard bu katmanı
+> paneller üzerinden görünür kılar: AI triyaj, prompt canary, MCP denetim
+> günlüğü, RAG guard canlı tarama ve kanıt zinciri doğrulama. Pivot'un
+> görünür yüzeyi (UI) tamamlandı; frontend test kapsamı `npm run test`
+> (vitest) ile ölçülür.
 
 **Katman 3 — Arayüz ve dağıtım:**
 ```
