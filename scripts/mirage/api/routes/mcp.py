@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field
 
 from ..deps import get_mcp_gateway, require_api_token
 from ...mcp_gateway import MCPServerInfo
+from ...mcp_audit_store import MCPAuditStore
+from ...supabase_registry import SupabaseNotConfiguredError
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -65,3 +67,33 @@ def mcp_audit_summary(request: Request) -> dict:
     """Bu süreçteki MCP gateway denetim günlüğünün özeti (in-memory)."""
     require_api_token(request)
     return get_mcp_gateway().audit_summary()
+
+
+@router.get("/audit/log")
+def mcp_audit_log(limit: int = 50, request: Request = None) -> dict:
+    """
+    KALICI denetim kayıtları (`mcp_audit` tablosu).
+
+    `/audit` bellekteki listeyi özetler ve restart'ta sıfırlanır. Dashboard
+    kalıcı kaydı buradan okur; aksi halde her deploy'da boş ekran
+    gösterecek ve "koruma yok" izlenimi üretecekti.
+
+    Supabase yapılandırılmamışsa 503 döner — sessizce boş liste DEĞİL,
+    çünkü "koruma yok" ile "kayıt yok" ayrımı önemlidir.
+    """
+    require_api_token(request)
+    try:
+        store = MCPAuditStore()
+    except SupabaseNotConfiguredError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"MCP audit log not configured: {e}",
+        )
+
+    bounded = max(1, min(int(limit or 50), 500))
+    records = store.list_recent(limit=bounded)
+    return {
+        "count": len(records),
+        "summary": store.summary(),
+        "records": records,
+    }

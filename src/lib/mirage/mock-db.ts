@@ -4,6 +4,7 @@ export interface MockDb {
   honeytokens: any[]
   triage: any[]
   canaries: any[]
+  mcpAudit: any
   evidence: any[]
   evidenceVerify: any
 }
@@ -103,6 +104,51 @@ export const mockDb: MockDb = globalForMockDb.mockDb || {
       created_at: new Date(Date.now() - 604800000).toISOString()
     }
   ],
+  // MCP denetim özeti (local demo). Gerçek veri Python sürecinde tutulur.
+  mcpAudit: {
+    count: 3,
+    summary: {
+      total: 128,
+      allowed: 112,
+      denied: 16,
+      by_risk_level: { low: 84, medium: 30, high: 10, critical: 4 }
+    },
+    records: [
+      {
+        id: "m-1",
+        occurred_at: new Date(Date.now() - 120000).toISOString(),
+        actor: "satis-ajanlari",
+        server: "shell",
+        tool: "exec_command",
+        allowed: false,
+        reason: "sunucu risk seviyesi 'critical' politika eşiğini aşıyor",
+        risk_score: 95,
+        risk_level: "critical"
+      },
+      {
+        id: "m-2",
+        occurred_at: new Date(Date.now() - 600000).toISOString(),
+        actor: "satis-ajanlari",
+        server: "github",
+        tool: "create_issue",
+        allowed: true,
+        reason: "politika ve risk eşiği sağlandı",
+        risk_score: 30,
+        risk_level: "medium"
+      },
+      {
+        id: "m-3",
+        occurred_at: new Date(Date.now() - 3600000).toISOString(),
+        actor: "destek-botu",
+        server: "filesystem",
+        tool: "read_file",
+        allowed: true,
+        reason: "politika ve risk eşiği sağlandı",
+        risk_score: 20,
+        risk_level: "low"
+      }
+    ]
+  },
   // Kanıt zinciri demo kayıtları. Gerçek zincir `triggered_beacons`
   // tablosundaki prev_hash/record_hash/hmac alanlarıdır; mock'ta
   // yalnızca görüntülenecek kısım bulunur (hash'ler kısaltılmıştır).

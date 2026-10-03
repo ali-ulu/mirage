@@ -27,6 +27,7 @@ from ..team_store import TeamMembershipStore
 from ..triage_store import BeaconTriageStore
 from ..deception import DeceptionOrchestrator
 from ..mcp_gateway import MCPGateway, default_policy_from_env
+from ..mcp_audit_store import MCPAuditStore
 from ..agent import CanaryRegistry
 
 # ---------------------------------------------------------------------------
@@ -146,7 +147,18 @@ _MCP_GATEWAY: Optional[MCPGateway] = None
 def get_mcp_gateway() -> MCPGateway:
     global _MCP_GATEWAY
     if _MCP_GATEWAY is None:
-        _MCP_GATEWAY = MCPGateway(policy=default_policy_from_env())
+        # Denetim kaydını kalıcı tabloya da yaz. Supabase yapılandırılmamışsa
+        # (yerel demo, test) gateway yine de çalışır — sink yoktur, kararlar
+        # yalnızca bellekteki audit_log'da tutulur (eski davranış).
+        sink = None
+        try:
+            sink = MCPAuditStore.as_sink().save_entry
+        except SupabaseNotConfiguredError:
+            sink = None
+        _MCP_GATEWAY = MCPGateway(
+            policy=default_policy_from_env(),
+            audit_sink=sink,
+        )
     return _MCP_GATEWAY
 
 
