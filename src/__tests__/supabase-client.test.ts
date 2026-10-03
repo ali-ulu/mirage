@@ -15,6 +15,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 
+// Yavaş ortamda `waitFor` varsayılan 1000 ms'i aşabiliyordu:
+// `useMirageAttackers`/`useMirageBeacons` realtime durumu değiştikçe
+// (idle → connecting → connected) effect yeniden çalışıp fetch'i tekrar
+// tetikliyor. Zincir yavaş makinede bu süreyi aşınca test rastgele
+// düşüyordu. Timeout bilinçli yükseltildi — üretim koduna dokunulmadı.
+const WAIT = { timeout: 5000 }
+
 // vi.hoisted ile mock objeleri tanımla — bunlar vi.mock factory'sinde
 // erişilebilir (vi.mock hoist edilir, normal const'lar erişilemez)
 const {
@@ -135,7 +142,7 @@ describe('useMirageStats', () => {
 
     await waitFor(() => {
       expect(result.current.error).not.toBeNull()
-    })
+    }, WAIT)
   })
 })
 
@@ -165,7 +172,7 @@ describe('useMirageAttackers', () => {
     await waitFor(() => {
       expect(result.current.attackers.length).toBeGreaterThan(0)
       expect(result.current.attackers[0].ip).toBe('203.0.113.42')
-    })
+    }, WAIT)
   })
 })
 
@@ -192,6 +199,6 @@ describe('useMirageBeacons', () => {
     await waitFor(() => {
       expect(result.current.beacons.length).toBeGreaterThan(0)
       expect(result.current.beacons[0].ip).toBe('203.0.113.42')
-    })
+    }, WAIT)
   })
 })
