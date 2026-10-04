@@ -200,8 +200,8 @@ Uçlar (token korumalı): `/agent/plan`, `/agent/anonymize`, `/agent/canary`,
 > testli (bkz. `docs/PAZAR_ANALIZI_VE_AI_PIVOT.md` §5). Dashboard bu katmanı
 > paneller üzerinden görünür kılar: AI triyaj, prompt canary, MCP denetim
 > günlüğü, RAG guard canlı tarama ve kanıt zinciri doğrulama. Pivot'un
-> görünür yüzeyi (UI) tamamlandı; frontend test kapsamı `npm run test`
-> (vitest) ile ölçülür.
+> görünür yüzeyi (UI) tamamlandı; frontend testleri `npm run test`
+> (vitest) ile çalıştırılır.
 
 **Katman 3 — Arayüz ve dağıtım:**
 ```
